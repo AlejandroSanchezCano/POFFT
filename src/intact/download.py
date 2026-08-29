@@ -7,7 +7,7 @@ Outline:    Use the IntAct class to download the data of the latest version of
 Docs:       https://www.ebi.ac.uk/intact/home
 Author:     Alejandro Sánchez Cano
 Date:       29/08/2026
-Time:       5 min
+Time:       8 min
 ===============================================================================
 """
 
