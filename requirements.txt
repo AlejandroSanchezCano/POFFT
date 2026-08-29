@@ -1,0 +1,4 @@
+conda create -n pofft python=3.11 -y
+conda activate pofft
+pip install tqdm                      # 4.70.0
+pip install seaborn                   # 0.13.2
