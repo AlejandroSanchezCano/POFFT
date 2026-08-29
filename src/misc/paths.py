@@ -18,3 +18,4 @@ TOOLS = CHONKY / 'tools'
 
 # Data directories
 DATA = PROJECT / 'data'
+INTACT = DATA / 'intact'
