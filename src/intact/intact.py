@@ -84,6 +84,45 @@ class IntAct:
         # Logging
         logger.info(f'IntAct {self.version} files downloaded')
 
+    def summary_of_databases(self) -> pd.DataFrame:
+        '''
+        The columns "ID(s) interactor A" and "ID(s) interactor B" contain 
+        accessions from different databases such as UniProt, IntAct or even 
+        ChEBI. This method summarizes the number of interactions per database
+        pair, regardless of the interactor order (AB = BA).
+
+        Returns
+        -------
+        pd.DataFrame
+            Dataframe with the number of interactions per database pair.
+        '''
+        # Dataframe must be loaded first
+        if self.df is None:
+            raise ValueError('self.df attribute is None, load the IntAct data first')
+
+        # Summarize the databases
+        col1 = '#ID(s) interactor A'
+        col2 = 'ID(s) interactor B'
+        which_accession = lambda x: x.split(':')[0]
+        sep = ' & '
+        sort_and_join = lambda x: sep.join(sorted(x))
+        split_col1 = lambda x: x['Database pair'].str.split(sep).str[0]
+        split_col2 = lambda x: x['Database pair'].str.split(sep).str[1]
+        summary = (
+            self.df[[col1, col2]]           # Columns with interactor IDs
+            .map(which_accession)           # Parse the database
+            .apply(sort_and_join, axis=1)   # Sort and join the two databases
+            .value_counts()                 # Count the number of interactions per database pair
+            .rename_axis('Database pair')   # Name index
+            .reset_index(name='Count')      # Name column
+            .assign(
+                Database_1 = split_col1,    # Split database pair in two columns
+                Database_2 = split_col2     # Split database pair in two columns
+            )
+        )
+
+        return summary
+
     def preserve_uniprot_accessions(self) -> None:
         '''
         The columns "ID(s) interactor A" and "ID(s) interactor B" contain 
@@ -97,47 +136,40 @@ class IntAct:
         It would be slighly faster with awk or other command line tools, but
         using pandas gives more flexibility, plus the fie is not that big and
         the method is only called once per version.
-        '''
-        # Convert to dataframe
-        logger.info('Reading intact.txt file...')
-        df = pd.read_csv(
-            paths.INTACT / self.version / 'intact.txt', 
-            sep='\t'
-        )
-        total_lines = len(df)
 
-        # Distribution of databases
-        which_accession = lambda x: x.split(':')[0]
-        col1 = '#ID(s) interactor A'
-        col2 = 'ID(s) interactor B'
-        counts = df[[col1, col2]].map(which_accession).value_counts()
-        logger.debug(f'Accessions counts:\n{counts}')
+        It mutates the self.df attribute.
+        '''
+        # Dataframe must be loaded first
+        if self.df is None:
+            raise ValueError('self.df attribute is None, load the IntAct data first')
+        else:
+            total_lines = len(self.df)
 
         # Filter out non-UniProt accessions
         logger.info(f'Filtering out non-UniProt accessions...')
-        df = df[
-                (df[col1].apply(which_accession) == 'uniprotkb') &
-                (df[col2].apply(which_accession) == 'uniprotkb')
+        col1 = '#ID(s) interactor A'
+        col2 = 'ID(s) interactor B'
+        which_accession = lambda x: x.split(':')[0]
+        self.df = self.df[
+                (self.df[col1].apply(which_accession) == 'uniprotkb') &
+                (self.df[col2].apply(which_accession) == 'uniprotkb')
             ]
-        non_uniprot_lines = total_lines - len(df)
+        non_uniprot_lines = total_lines - len(self.df)
         logger.info(f'Total lines: {total_lines}')
-        logger.info(f'Lines after filtering: {len(df)}')
-        logger.info(f'Lines removed: {non_uniprot_lines} ({non_uniprot_lines/total_lines:.2%})')
+        logger.info(f'Lines after filtering: {len(self.df)}')
+        logger.info(f'Lines removed: {non_uniprot_lines} ({non_uniprot_lines/total_lines:.2%})\n')
 
         # Filter out UniProt accessions containing "PRO"
         logger.info(f'Filtering out UniProt accessions containing "PRO"...')
         contains_PRO = lambda x: "PRO" in x
-        df = df[
-                ~df[col1].apply(contains_PRO) &
-                ~df[col2].apply(contains_PRO)
+        self.df = self.df[
+                ~self.df[col1].apply(contains_PRO) &
+                ~self.df[col2].apply(contains_PRO)
             ]
-        pro_lines = total_lines - non_uniprot_lines - len(df)
+        pro_lines = total_lines - non_uniprot_lines - len(self.df)
         logger.info(f'Total lines: {total_lines - non_uniprot_lines}')
-        logger.info(f'Lines after filtering: {len(df)}')
-        logger.info(f'Lines removed: {pro_lines} ({pro_lines/(total_lines - non_uniprot_lines):.2%})')
-
-        # Save filtered dataframe
-        self.df = df
+        logger.info(f'Lines after filtering: {len(self.df)}')
+        logger.info(f'Lines removed: {pro_lines} ({pro_lines/(total_lines - non_uniprot_lines):.2%})\n')
 
     def remove_duplicates(self) -> None:
         '''
@@ -145,6 +177,8 @@ class IntAct:
         interaction is found from different experimental methods, each method
         will be represented in a different line. This method removes duplicate
         interaction lines, regardless of the interactor order (AB = BA).
+
+        It mutates the self.df attribute.
         '''
         # Create a new column with sorted 
         logger.info(f'Removing duplicate interactions...')
@@ -160,7 +194,7 @@ class IntAct:
         duplicates_removed = total_lines - len(self.df)
         logger.info(f'Total lines: {total_lines}')
         logger.info(f'Lines after filtering: {len(self.df)}')
-        logger.info(f'Lines removed: {duplicates_removed} ({duplicates_removed/total_lines:.2%})')
+        logger.info(f'Lines removed: {duplicates_removed} ({duplicates_removed/total_lines:.2%})\n')
 
         # Remove temp column
         self.df.drop(columns='sorted_accessions', inplace=True)
