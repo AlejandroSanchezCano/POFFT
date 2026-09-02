@@ -16,8 +16,8 @@ import pandas as pd
 
 # Custom modules
 from intact import IntAct
-from src.misc import paths
-from src.misc.logger import logger
+from misc import paths
+from misc.logger import logger
 logger.info('Importing modules completed')
 
 # Download IntAct data
