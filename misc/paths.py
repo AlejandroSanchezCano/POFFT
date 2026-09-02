@@ -12,7 +12,7 @@ Date:       28/08/2026
 from pathlib import Path
 
 # Top directories
-CHONKY = Path('/home/asanchez/chonky')
+CHONKY = Path('/gpfs/work5/0/prjs1460/')
 PROJECT = CHONKY / 'POFFT'
 TOOLS = CHONKY / 'tools'
 
