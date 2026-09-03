@@ -3,7 +3,7 @@
 # Parse arguments
 unit="gpu_a100"
 time="00:01:00"
-conda="ml4mikc"
+conda="pofft"
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -u|--unit) unit="$2"; shift ;;
