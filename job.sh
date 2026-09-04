@@ -33,7 +33,7 @@ elif [[ "$unit" =~ ^(gpu_a100|gpu_h100)$ && ! "${sbatch_args[*]}" =~ --gpus= ]];
     sbatch_args+=("--gpus=1")
 fi
 
-if ! [[ "$time" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+if ! [[ "$time" =~ ^([1-7]+-)?[0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
     echo "Invalid time format. Use HH:MM:SS."
     exit 1
 fi
@@ -92,6 +92,13 @@ fi
 if [[ "$module" == "ccp4" ]]; then
 cat <<EOF >> "$SBATCH_SCRIPT"
 source /home/asanchez/chonky/tools/CCP4/ccp4-9/bin/ccp4.setup-sh
+EOF
+fi
+
+if [[ "$module" == "hmmer" ]]; then
+cat <<EOF >> "$SBATCH_SCRIPT"
+module load 2024
+module load HMMER/3.4-gompi-2024a
 EOF
 fi
 
