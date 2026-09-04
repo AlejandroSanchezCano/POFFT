@@ -3,6 +3,9 @@
 Title:      Run HMMER
 Outline:    If Pfam-A.hmm is not present, download it. Then, run hmmscan on the
             sequences from IntAct to detect protein families.
+
+            We could think about parallelizing it by sequence to speed up the 
+            process and perhaps go to 2 h. 
 Docs:       http://eddylab.org/software/hmmer/Userguide.pdf
 Author:     Alejandro Sánchez Cano
 Date:       04/09/2026
