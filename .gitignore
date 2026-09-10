@@ -1,6 +1,7 @@
 # Custom
 logs/
 data/
+reports/
 *.out
 
 # Byte-compiled / optimized / DLL files

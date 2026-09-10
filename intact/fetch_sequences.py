@@ -77,7 +77,10 @@ for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
         time.sleep(waiting_time)
 
     # Downoad sequences
-    response = job.download(size=400)
+    response = job.download(
+        size=400,
+        out_dir=paths.REPORTS / 'uniprotjob'
+    )
     fasta = Fasta.from_string(response)
     records.extend(fasta.records)
     logger.info(f"Downloaded {len(fasta)} sequences from batch {idx + 1}")

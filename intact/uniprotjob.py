@@ -13,6 +13,8 @@ Date:       02/09/2026
 import re
 import time
 import math
+import json
+from pathlib import Path
 
 # Third-party modules
 import requests
@@ -103,9 +105,15 @@ class UniProtJob:
             # Wait
             time.sleep(poll_interval)
 
-    def download(self, size: int = 40) -> str:
+    def download(
+        self, 
+        size: int = 40,
+        out_dir: str | Path = "."
+    ) -> str:
         '''
-        Downloads the results of the job in FASTA format using pagination.
+        Downloads the results of the job using pagination. Results are obtained
+        in FASTA format and JSON format (for metadata and debugging). The JSON
+        files are saved in the specified output directory.
 
         Parameters
         ----------
@@ -114,6 +122,10 @@ class UniProtJob:
             maximum limit of 500 entries per request. If the job has more than
             this number of entries, the function will paginate through the 
             results using the "Link" header provided by the API. 
+        out_dir : str
+            Directory where the JSON files will be saved. Each entry will be
+            saved as a separate JSON file named after its query accession 
+            number.
 
         Returns
         -------
@@ -122,9 +134,10 @@ class UniProtJob:
         '''
         # Define initial URL
         url = f"{self.API}/idmapping/uniprotkb/results/{self.id}"
-        params = {"format": "fasta", "size": size}
+        params_fasta = {"format": "fasta", "size": size}
+        params_json = {"format": "json", "size": size}
         if size > 500:
-            raise ValueError("Paginaiton size limit exceeded (> 500)")
+            raise ValueError("Pagination size limit exceeded (> 500)")
 
         # Progress bar
         pbar = tqdm(
@@ -136,8 +149,16 @@ class UniProtJob:
         # Paginate through results
         fasta_results = []
         while url:
-            # Send request
-            response = requests.get(url=url, params=params)
+            # JSON request
+            response = requests.get(url=url, params=params_json)
+            response.raise_for_status()
+            results = response.json()
+            for result in results.get("results", []):
+                accession = result['from']
+                with open(f"{out_dir}/{accession}.json", "w") as f:
+                    json.dump(result, f, indent=4)
+            # FASTA request
+            response = requests.get(url=url, params=params_fasta)
             response.raise_for_status()
             fasta_results.append(response.text)
             # Update progress bar
@@ -156,25 +177,13 @@ class UniProtJob:
 
 if __name__ == "__main__":
     # Example usage
-    #accessions = ["P50570"]
-    #job = UniProtJob(accessions)
-    #job.submit()
-    #job.wait(poll_interval=1, max_wait_time=300)
-    #print(job.download())
-
-    with open('/home/asanchez/chonky/POFFT/tests/accessions.txt', 'r') as f:
-        accessions = [line.strip() for line in f.readlines()][9_798:9_799]
-    print(len(accessions), "accessions to process")
-    print(accessions)
-    job = UniProtJob(['O82732'])
+    accessions = [
+        "O82732",       # Active
+        "P62204",       # Demerged to 3 active entries
+        "A0A2H5NPF5",   # Deleted
+        "O00597"        # Deleted
+    ]
+    job = UniProtJob(accessions)
     job.submit()
-    job.wait(poll_interval=5, max_wait_time=300)
-    s = job.download(size=500)
-    
-    from fasta import Fasta
-    fasta = Fasta.from_string(s)
-    print(len(fasta.records), "sequences downloaded")
-    print(fasta.records)
-
-    # 4_969 -> P62161
-    #P62204
+    job.wait(poll_interval=1, max_wait_time=300)
+    print(job.download())

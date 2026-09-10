@@ -20,3 +20,6 @@ TOOLS = CHONKY / 'tools'
 DATA = PROJECT / 'data'
 INTACT = DATA / 'intact'
 HMMER = DATA / 'hmmer'
+
+# Miscellaneous directories
+REPORTS = PROJECT / 'reports'
