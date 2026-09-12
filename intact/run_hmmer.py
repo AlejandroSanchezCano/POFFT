@@ -14,10 +14,19 @@ Time:       14 h
 """
 
 # Built-in modules
+import os
+import tempfile
 import subprocess
 
 # Custom modules
 from misc import paths
+from fasta import Fasta
+from misc.logger import logger
+logger.info('Importing modules completed')
+
+# Task ID
+task = int(os.getenv('SLURM_ARRAY_TASK_ID'))
+logger.info(f"Task ID: {task}")
 
 ###############################################################################
 #######                    DOWNLOAD PFAM HMMER MODELS                   #######
@@ -38,12 +47,25 @@ if not (paths.HMMER / 'Pfam-A.hmm').exists():
 #######                           HMMSCAN                               #######
 ###############################################################################
 
-# Run hmmscan
-cmd = (
-    f'hmmscan'
-    f' --cut_ga'
-    f' --domtblout {paths.INTACT}/2026-01-09/hmmer.domtblout'
-    f' {paths.HMMER}/Pfam-A.hmm'
-    f' {paths.INTACT}/2026-01-09/filtered.fasta'
-)
-subprocess.run(cmd, shell=True, check=True)
+# Get fasta
+file_path = paths.INTACT / '2026-01-09' / 'filtered.fasta'
+records = Fasta.from_file(file_path).records
+record = records[task]
+accession = record[0].split('|')[1]
+with tempfile.NamedTemporaryFile(mode='w', suffix='.fasta') as temp_file:
+
+    # Write to temporary FASTA file
+    fasta = Fasta.from_records([record])
+    fasta.write(temp_file.name)
+    temp_file.flush()  # Ensure data is written to disk
+    logger.info(f"Temporary FASTA file created: {temp_file.name}")
+
+    # Run hmmscan
+    cmd = (
+        f'hmmscan'
+        f' --cut_ga'
+        f' --domtblout {paths.REPORTS}/hmmer/{task}.{accession}.domtblout'
+        f' {paths.HMMER}/Pfam-A.hmm'
+        f' {temp_file.name}'
+    )
+    subprocess.run(cmd, shell=True, check=True)

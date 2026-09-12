@@ -7,7 +7,7 @@ Outline:    Use the IntAct class to download the data of the latest version of
 Docs:       https://www.ebi.ac.uk/intact/home
 Author:     Alejandro Sánchez Cano
 Date:       29/08/2026
-Time:       10 min
+Time:       7 min
 ===============================================================================
 """
 
@@ -22,7 +22,7 @@ logger.info('Importing modules completed')
 
 # Download IntAct data
 intact = IntAct(version='2026-01-09')
-#intact.download_files()
+intact.download_files()
 
 # Read the intact.txt file into a dataframe
 logger.info('Reading intact.txt file...')
