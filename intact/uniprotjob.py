@@ -161,6 +161,8 @@ class UniProtJob:
                 accession = result['from']
                 with open(f"{json_dir}/{accession}.json", "w") as f:
                     json.dump(result, f, indent=4)
+            for failed in results.get("failedIds", []):
+                logger.warning(f"Failed to retrieve {failed}")
             # FASTA request
             response = requests.get(url=url, params=params_fasta)
             response.raise_for_status()
@@ -188,7 +190,8 @@ if __name__ == "__main__":
         "O82732",       # Active
         "P62204",       # Demerged to 3 active entries
         "A0A2H5NPF5",   # Deleted
-        "O00597"        # Deleted
+        "O00597",       # Deleted
+        "P85299-2"      # Failed ID
     ]
     job = UniProtJob(accessions)
     job.submit()

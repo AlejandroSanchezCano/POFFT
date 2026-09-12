@@ -17,7 +17,9 @@ Time:       50 min
 """
 
 # Built-in modules
+import os
 import time
+import random
 
 # Third-party modules
 import pandas as pd
@@ -30,6 +32,12 @@ from misc.logger import logger
 from uniprotjob import UniProtJob
 logger.info('Importing modules completed')
 
+# Variables
+BATCH_SIZE = 10_000
+PERMUTE = True
+MAX_ATTEMPTS = 5
+PAGINATION_SIZE = 400
+
 # Gather accessions
 logger.info('Obtaining UniProt accessions...')
 df = pd.read_csv(
@@ -41,8 +49,16 @@ accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
 accessions = pd.concat([accessions_A, accessions_B]).unique()
 logger.info(f'Total unique UniProt accessions: {len(accessions)}')
 
+# Check for already fetched accessions
+fetched = os.listdir(paths.REPORTS / 'uniprotjob')
+fetched = [f.split('.')[0] for f in fetched]
+remaining_accessions = list(set(accessions) - set(fetched))
+if len(remaining_accessions) != len(accessions):
+    logger.info(f'Accessions already fetched: {len(fetched)}')
+    logger.info(f'Remaining accessions to fetch: {len(remaining_accessions)}')
+    accessions = remaining_accessions
+
 # Batch accessions
-BATCH_SIZE = 10_000
 batches = [
     accessions[idx:idx + BATCH_SIZE]
     for idx in range(0, len(accessions), BATCH_SIZE)
@@ -50,10 +66,12 @@ batches = [
 
 # Process batches
 records = []
-MAX_ATTEMPTS = 5
 for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
-
     logger.info(f"Batch {idx + 1}/{len(batches)} with {len(batch)} accessions")
+
+    # Permute accessions in the batch to avoid potential API issues
+    if PERMUTE:
+        random.shuffle(batch)
 
     # Retry loop
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -78,7 +96,7 @@ for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
 
     # Downoad sequences
     response = job.download(
-        size=400,
+        size=PAGINATION_SIZE,
         json_dir=paths.REPORTS / 'uniprotjob'
     )
     fasta = Fasta.from_string(response)

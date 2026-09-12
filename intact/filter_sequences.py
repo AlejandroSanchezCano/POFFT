@@ -6,12 +6,14 @@ Outline:    Compares the UniProt accessions obtained from fetching their
             and keeps the intersecting interactors and their corresponding
             interactions. Then, it filters the sequences by length < 800 amino
             acids.
-
 Author:     Alejandro Sánchez Cano
 Date:       29/08/2026
 Time:       2 min
 ===============================================================================
 """
+
+# Built-in modules
+import os
 
 # Third-party modules
 import pandas as pd
@@ -22,6 +24,47 @@ from fasta import Fasta
 from misc import paths
 from misc.logger import logger
 logger.info('Importing modules completed')
+
+###############################################################################
+#######                      VERIFY SEQUENCE DATA                       #######
+###############################################################################
+
+# Gather total accessions
+df = pd.read_csv(
+    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
+    sep='\t',
+)
+accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
+accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
+total_accessions = pd.concat([accessions_A, accessions_B]).unique()
+logger.info(f'Total UniProt accessions: {len(total_accessions)}')
+
+# Gather fetched accessions
+fetched_accessions = os.listdir(paths.REPORTS / 'uniprotjob')
+fetched_accessions = [f.split('.')[0] for f in fetched_accessions]
+logger.info(f'Fetched UniProt accessions: {len(fetched_accessions)}')
+
+# Gather failed accessions
+failed_accessions = [
+    'A4GZ26', 
+    'P08195-4', 
+    'P0C869-4', 
+    'P13706-1', 
+    'P61966-2', 
+    'P63059-1', 
+    'P85299-2', 
+    'Q13421-2', 
+    'Q86VZ6-2', 
+    'Q8CGF4'
+] 
+logger.info(f'Failed UniProt accessions: {len(failed_accessions)}')
+
+# Verify that all accessions have been fetched
+missing_accessions = set(total_accessions) - set(fetched_accessions) - set(failed_accessions)
+if missing_accessions:
+    logger.warning(f"Missing accessions: {missing_accessions}. Rerun the fetch_sequences.py script to retrieve them.")
+else:
+    logger.info("All accessions have been fetched or failed, no missing accessions")
 
 ###############################################################################
 #######              DISREGARD ACCESSIONS WITHOUT SEQUENCE              #######
@@ -36,10 +79,10 @@ accessions = set(accessions)
 logger.info(f'Unique UniProt accessions: {len(accessions)}')
 
 # Load filtered DataFrame
-df = pd.read_csv(
-    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
-    sep='\t',
-)
+#df = pd.read_csv(
+#    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
+#    sep='\t',
+#)
 total_interactions = len(df)
 
 # Remove rows without fetched sequences
