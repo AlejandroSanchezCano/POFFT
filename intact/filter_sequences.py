@@ -14,6 +14,7 @@ Time:       2 min
 
 # Built-in modules
 import os
+import sys
 
 # Third-party modules
 import pandas as pd
@@ -26,7 +27,7 @@ from misc.logger import logger
 logger.info('Importing modules completed')
 
 ###############################################################################
-#######                      VERIFY SEQUENCE DATA                       #######
+#######                   VERIFY NO MISSING ACCESSION                   #######
 ###############################################################################
 
 # Gather total accessions
@@ -34,6 +35,7 @@ df = pd.read_csv(
     paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
     sep='\t',
 )
+total_interactions = len(df)
 accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
 accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
 total_accessions = pd.concat([accessions_A, accessions_B]).unique()
@@ -62,9 +64,10 @@ logger.info(f'Failed UniProt accessions: {len(failed_accessions)}')
 # Verify that all accessions have been fetched
 missing_accessions = set(total_accessions) - set(fetched_accessions) - set(failed_accessions)
 if missing_accessions:
-    logger.warning(f"Missing accessions: {missing_accessions}. Rerun the fetch_sequences.py script to retrieve them.")
+    logger.error(f"Missing accessions: {missing_accessions}. Rerun the fetch_sequences.py script to retrieve them.")
+    sys.exit(1)
 else:
-    logger.info("All accessions have been fetched or failed, no missing accessions")
+    logger.info("All accessions have been fetched or failed, no missing accessions\n")
 
 ###############################################################################
 #######              DISREGARD ACCESSIONS WITHOUT SEQUENCE              #######
@@ -73,54 +76,55 @@ else:
 # UniProt accessions from headers
 fasta_path = paths.INTACT / '2026-01-09' / 'sequences.fasta'
 fasta = Fasta.from_file(fasta_path)
-accessions = [header.split('|')[1] for header in fasta.headers]
-logger.info(f'Total UniProt accessions: {len(accessions)}')
-accessions = set(accessions)
-logger.info(f'Unique UniProt accessions: {len(accessions)}')
-
-# Load filtered DataFrame
-#df = pd.read_csv(
-#    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
-#    sep='\t',
-#)
-total_interactions = len(df)
+fasta_accessions = [header.split('|')[1] for header in fasta.headers]
+logger.info(f'Total UniProt accessions in fasta file: {len(fasta_accessions)}')
+fasta_accessions = set(fasta_accessions)
+logger.info(f'Unique UniProt accessions in fasta file: {len(fasta_accessions)}')
 
 # Remove rows without fetched sequences
-has_sequence = lambda x: x.split(':')[1] in accessions
+has_fetched_sequence = lambda x: x.split(':')[1] in fasta_accessions
 col1 = '#ID(s) interactor A'
 col2 = 'ID(s) interactor B'
 df = df[
-        (df[col1].apply(has_sequence)) &
-        (df[col2].apply(has_sequence))
+        (df[col1].apply(has_fetched_sequence)) &
+        (df[col2].apply(has_fetched_sequence))
     ]
+accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
+accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
+filtered_accessions = set(pd.concat([accessions_A, accessions_B]).unique())
+
+# Filter fasta records to only include those matching in the filtered DataFrame
+matching_records = {}
+for header, sequence in fasta.records:
+    accession = header.split('|')[1]
+    if accession in filtered_accessions:
+        matching_records[accession] = (header, sequence)
+matching_records = list(matching_records.values())
+assert len(matching_records) == len(filtered_accessions), "Mismatch between filtered accessions and matching records"
 
 # Logging
 logger.info(f'Total interactions: {total_interactions}')
 logger.info(f'Interactions after filtering: {len(df)}')
 logger.info(f'Interactions removed: {total_interactions - len(df)} ({(total_interactions - len(df)) / total_interactions:.2%})')
-accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
-accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
-accessions = pd.concat([accessions_A, accessions_B]).unique()
-logger.info(f'Total unique UniProt accessions after filtering: {len(accessions)}')
+logger.info(f'Total unique UniProt accessions after filtering: {len(filtered_accessions)}\n')
 
 ###############################################################################
 #######                       FILTER BY LENGTH                          #######
 ###############################################################################
 
-# Filter UniProt accessions
+# Filter fasta records by length < 800 amino acids
+short_records = []
 short_accessions = set()
-filtered_records = []
-sequence_length_threshold = 800
-for header, sequence in tqdm(fasta.records, desc='Filtering by length'):
-    accession = header.split('|')[1].split('|')[0]
-    if len(sequence) < sequence_length_threshold:
+for header, sequence in matching_records:
+    accession = header.split('|')[1]
+    if len(sequence) < 800:
         short_accessions.add(accession)
-        filtered_records.append((header, sequence))
+        short_records.append((header, sequence))
 
-# Logging interactors
-logger.info(f'Total sequences: {len(accessions)}')
-logger.info(f'Sequences with length < {sequence_length_threshold}: {len(short_accessions)}')
-logger.info(f'Sequences with length >= {sequence_length_threshold}: {len(accessions) - len(short_accessions)} ({(len(accessions) - len(short_accessions)) / len(accessions):.2%})\n')
+# Logging sequences
+logger.info(f'Total sequences: {len(matching_records)}')
+logger.info(f'Sequences with length < 800: {len(short_records)}')
+logger.info(f'Sequences with length >= 800: {len(matching_records) - len(short_records)} ({(len(matching_records) - len(short_records)) / len(matching_records):.2%})\n')
 
 # Filter interactions by length
 has_valid_length = lambda x: x.split(':')[1] in short_accessions
@@ -135,13 +139,28 @@ logger.info(f'Interactions after filtering by length: {len(length_filtered)}')
 logger.info(f'Interactions removed: {len(df) - len(length_filtered)} ({(len(df) - len(length_filtered)) / len(df):.2%})\n')
 
 # Save filtered DataFrame
+logger.info(f'Saving filtered interactions to {paths.INTACT / "2026-01-09" / "filtered.txt"}...')
 length_filtered.to_csv(
     paths.INTACT / '2026-01-09' / 'filtered.txt',
     sep='\t',
     index=False,
 )
 
+# Get sequences corresponding to the filtered interactions
+accessions_A = length_filtered['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
+accessions_B = length_filtered['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
+filtered_accessions = set(pd.concat([accessions_A, accessions_B]).unique())
+filtered_records = []
+for header, sequence in short_records:
+    accession = header.split('|')[1]
+    if accession in filtered_accessions:
+        filtered_records.append((header, sequence))
+
+# Logging filtered sequences
+logger.info(f'Sequences with length < 800 from filtered interactions: {len(filtered_records)}')
+    
 # Save filtered fasta file
+logger.info(f'Saving filtered sequences to {paths.INTACT / "2026-01-09" / "filtered.fasta"}...')
 fasta = Fasta.from_records(filtered_records)
 out_file = paths.INTACT / '2026-01-09' / 'filtered.fasta'
 fasta.write(out_file)
