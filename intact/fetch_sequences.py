@@ -12,7 +12,7 @@ Outline:    Gather the unique valid UniProt accessions from IntAct, batch them,
             with increased poll interval.
 Author:     Alejandro Sánchez Cano
 Date:       02/09/2026
-Time:       20 min
+Time:       50 min
 ===============================================================================
 """
 
@@ -79,7 +79,7 @@ for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
     # Downoad sequences
     response = job.download(
         size=400,
-        out_dir=paths.REPORTS / 'uniprotjob'
+        json_dir=paths.REPORTS / 'uniprotjob'
     )
     fasta = Fasta.from_string(response)
     records.extend(fasta.records)

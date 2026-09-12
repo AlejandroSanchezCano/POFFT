@@ -2,7 +2,11 @@
 ===============================================================================
 Title:      Fetch sequences from UniProt
 Outline:    Wrapper for the UniProt REST API to fetch sequences in FASTA format
-            using the ID mapping service.
+            using the ID mapping service. It also collects the JSON metadata
+            for each entry and saves it in the specified output directory.
+            Requesting both FASTA and JSON formats doubles the running time, 
+            but it is useful for debugging and for potential additonal 
+            information.
 Docs:       https://www.uniprot.org/api-documentation/idmapping
 Author:     Alejandro Sánchez Cano
 Date:       02/09/2026
@@ -108,7 +112,7 @@ class UniProtJob:
     def download(
         self, 
         size: int = 40,
-        out_dir: str | Path = "."
+        json_dir: str | Path = "."
     ) -> str:
         '''
         Downloads the results of the job using pagination. Results are obtained
@@ -122,7 +126,7 @@ class UniProtJob:
             maximum limit of 500 entries per request. If the job has more than
             this number of entries, the function will paginate through the 
             results using the "Link" header provided by the API. 
-        out_dir : str
+        json_dir : str
             Directory where the JSON files will be saved. Each entry will be
             saved as a separate JSON file named after its query accession 
             number.
@@ -143,7 +147,7 @@ class UniProtJob:
         pbar = tqdm(
             desc="Downloading sequences", 
             unit="page", 
-            total=math.ceil(len(self.accessions) / size),
+            total=math.ceil(len(self.accessions) / size) + 1,
         )
 
         # Paginate through results
@@ -155,7 +159,7 @@ class UniProtJob:
             results = response.json()
             for result in results.get("results", []):
                 accession = result['from']
-                with open(f"{out_dir}/{accession}.json", "w") as f:
+                with open(f"{json_dir}/{accession}.json", "w") as f:
                     json.dump(result, f, indent=4)
             # FASTA request
             response = requests.get(url=url, params=params_fasta)
@@ -165,12 +169,15 @@ class UniProtJob:
             pbar.update(1)
             # Check for pagination
             url = None
-            params = None
             link_header = response.headers.get("Link", "")
             for link in link_header.split(","):
                 match = re.search(r'<([^>]+)>;\s*rel="next"', link)
                 if match:
                     url = match.group(1)
+                    # The next URL contains its own query parameters.
+                    # Remove them because params_json / params_fasta
+                    # will be supplied explicitly on the next iteration
+                    url = url.replace("format=fasta&", "")
                     break
         
         return "\n".join(fasta_results)
@@ -186,4 +193,4 @@ if __name__ == "__main__":
     job = UniProtJob(accessions)
     job.submit()
     job.wait(poll_interval=1, max_wait_time=300)
-    print(job.download())
+    print(job.download(size=2))
