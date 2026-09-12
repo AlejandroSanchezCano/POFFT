@@ -157,12 +157,15 @@ class UniProtJob:
             response = requests.get(url=url, params=params_json)
             response.raise_for_status()
             results = response.json()
+            # Save JSON results to files
             for result in results.get("results", []):
                 accession = result['from']
                 with open(f"{json_dir}/{accession}.json", "w") as f:
                     json.dump(result, f, indent=4)
-            for failed in results.get("failedIds", []):
-                logger.warning(f"Failed to retrieve {failed}")
+            # Log failed IDs (once per job because all pages have them)
+            if '?cursor=' not in url:
+                for failed in results.get("failedIds", []):
+                    logger.warning(f"Failed to retrieve {failed}")
             # FASTA request
             response = requests.get(url=url, params=params_fasta)
             response.raise_for_status()
@@ -181,7 +184,7 @@ class UniProtJob:
                     # will be supplied explicitly on the next iteration
                     url = url.replace("format=fasta&", "")
                     break
-        
+                
         return "\n".join(fasta_results)
 
 if __name__ == "__main__":
