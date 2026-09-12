@@ -106,5 +106,5 @@ for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
 # Save results
 out_path = paths.INTACT / '2026-01-09' / 'sequences.fasta'
 fasta = Fasta.from_records(records)
-fasta.write(out_path=out_path)
+fasta.write(out_path=out_path, mode='a')
 logger.info(f"{len(fasta)} sequences saved to {out_path}")
