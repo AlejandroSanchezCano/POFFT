@@ -47,7 +47,10 @@ def build_file_handler() -> logging.FileHandler:
     '''
     main_file = inspect.stack()[-1].filename
     main_file = Path(main_file)
-    logs_file = paths.PROJECT / 'logs' / main_file.relative_to(paths.PROJECT)
+    try:
+        logs_file = paths.PROJECT / 'logs' / main_file.relative_to(paths.PROJECT)
+    except ValueError: # Running from Jupyter
+        logs_file = paths.PROJECT / 'logs' / main_file.name
     logs_file.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(
         logs_file.with_suffix('.log'),
