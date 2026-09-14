@@ -171,6 +171,10 @@ class IntAct:
         logger.info(f'Lines after filtering: {len(self.df)}')
         logger.info(f'Lines removed: {pro_lines} ({pro_lines/(total_lines - non_uniprot_lines):.2%})\n')
 
+        # Change uniprotkb:accession to accession
+        self.df[col1] = self.df[col1].apply(lambda x: x.split(':')[1])
+        self.df[col2] = self.df[col2].apply(lambda x: x.split(':')[1])
+
     def remove_duplicates(self) -> None:
         '''
         IntAct encodes interactions in a single line, but if the same 
