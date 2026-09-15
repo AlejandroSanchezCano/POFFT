@@ -1,13 +1,13 @@
 """
 ===============================================================================
 Title:      Run hmmscan
-Outline:    I Pfam-A.hmm is not present, download it, although this should be 
+Outline:    If Pfam-A.hmm is not present, download it, although this should be 
             done manually. Then, run hmmscan on the sequences from IntAct to
             detect protein families.
 Docs:       http://eddylab.org/software/hmmer/Userguide.pdf
 Author:     Alejandro Sánchez Cano
 Date:       04/09/2026
-Time:       14 h sequential,  40 min with 20 array jobs
+Time:       14 h sequential, 30 min with 30 jobs in parallel
 ===============================================================================
 """
 
