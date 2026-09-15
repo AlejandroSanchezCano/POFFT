@@ -14,60 +14,38 @@ Time:       2 min
 
 # Built-in modules
 import os
-import sys
+import json
 
 # Third-party modules
 import pandas as pd
 from tqdm import tqdm
 
 # Custom modules
-from fasta import Fasta
 from misc import paths
+from fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
 
 ###############################################################################
-#######                   VERIFY NO MISSING ACCESSION                   #######
+#######                          MAP ACCESSIONS                         #######
 ###############################################################################
 
-# Gather total accessions
+# Load dataframe
 df = pd.read_csv(
     paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
     sep='\t',
 )
-total_interactions = len(df)
-accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
-accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
-total_accessions = pd.concat([accessions_A, accessions_B]).unique()
-logger.info(f'Total UniProt accessions: {len(total_accessions)}')
 
-# Gather fetched accessions
-fetched_accessions = os.listdir(paths.REPORTS / 'uniprotjob')
-fetched_accessions = [f.split('.')[0] for f in fetched_accessions]
-logger.info(f'Fetched UniProt accessions: {len(fetched_accessions)}')
+# Load accession mapping
+mapper_path = paths.INTACT / '2026-01-09' / 'accession_mapping.json'
+with open(mapper_path, 'r') as handle:
+    accession_mapping = json.load(handle)
 
-# Gather failed accessions
-failed_accessions = [
-    'A4GZ26', 
-    'P08195-4', 
-    'P0C869-4', 
-    'P13706-1', 
-    'P61966-2', 
-    'P63059-1', 
-    'P85299-2', 
-    'Q13421-2', 
-    'Q86VZ6-2', 
-    'Q8CGF4'
-] 
-logger.info(f'Failed UniProt accessions: {len(failed_accessions)}')
-
-# Verify that all accessions have been fetched
-missing_accessions = set(total_accessions) - set(fetched_accessions) - set(failed_accessions)
-if missing_accessions:
-    logger.error(f"Missing accessions: {missing_accessions}. Rerun the fetch_sequences.py script to retrieve them.")
-    sys.exit(1)
-else:
-    logger.info("All accessions have been fetched or failed, no missing accessions\n")
+# Map
+logger.info(f'Mapping accessions...')
+mapping = lambda x: accession_mapping.get(x, x)
+df['#ID(s) interactor A'] = df['#ID(s) interactor A'].apply(mapping)
+df['ID(s) interactor B'] = df['ID(s) interactor B'].apply(mapping)
 
 ###############################################################################
 #######              DISREGARD ACCESSIONS WITHOUT SEQUENCE              #######
@@ -82,16 +60,15 @@ fasta_accessions = set(fasta_accessions)
 logger.info(f'Unique UniProt accessions in fasta file: {len(fasta_accessions)}')
 
 # Remove rows without fetched sequences
-has_fetched_sequence = lambda x: x.split(':')[1] in fasta_accessions
-col1 = '#ID(s) interactor A'
-col2 = 'ID(s) interactor B'
-df = df[
-        (df[col1].apply(has_fetched_sequence)) &
-        (df[col2].apply(has_fetched_sequence))
+has_fetched_sequence = lambda x: x in fasta_accessions
+filtered_df = df[
+        (df['#ID(s) interactor A'].apply(has_fetched_sequence)) &
+        (df['ID(s) interactor B'].apply(has_fetched_sequence))
     ]
-accessions_A = df['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
-accessions_B = df['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
-filtered_accessions = set(pd.concat([accessions_A, accessions_B]).unique())
+filtered_accessions = set(pd.concat([
+    filtered_df['#ID(s) interactor A'],
+    filtered_df['ID(s) interactor B']
+]).unique())
 
 # Filter fasta records to only include those matching in the filtered DataFrame
 matching_records = {}
@@ -103,9 +80,9 @@ matching_records = list(matching_records.values())
 assert len(matching_records) == len(filtered_accessions), "Mismatch between filtered accessions and matching records"
 
 # Logging
-logger.info(f'Total interactions: {total_interactions}')
-logger.info(f'Interactions after filtering: {len(df)}')
-logger.info(f'Interactions removed: {total_interactions - len(df)} ({(total_interactions - len(df)) / total_interactions:.2%})')
+logger.info(f'Total interactions: {len(df)}')
+logger.info(f'Interactions after filtering: {len(filtered_df)}')
+logger.info(f'Interactions removed: {len(df) - len(filtered_df)} ({(len(df) - len(filtered_df)) / len(df):.2%})')
 logger.info(f'Total unique UniProt accessions after filtering: {len(filtered_accessions)}\n')
 
 ###############################################################################
@@ -127,29 +104,30 @@ logger.info(f'Sequences with length < 800: {len(short_records)}')
 logger.info(f'Sequences with length >= 800: {len(matching_records) - len(short_records)} ({(len(matching_records) - len(short_records)) / len(matching_records):.2%})\n')
 
 # Filter interactions by length
-has_valid_length = lambda x: x.split(':')[1] in short_accessions
-length_filtered = df[
-        (df[col1].apply(has_valid_length)) &
-        (df[col2].apply(has_valid_length))
+has_valid_length = lambda x: x in short_accessions
+length_filtered_df = filtered_df[
+        (filtered_df['#ID(s) interactor A'].apply(has_valid_length)) &
+        (filtered_df['ID(s) interactor B'].apply(has_valid_length))
     ]
 
 # Logging interactions
-logger.info(f'Total interactions: {len(df)}')
-logger.info(f'Interactions after filtering by length: {len(length_filtered)}')
-logger.info(f'Interactions removed: {len(df) - len(length_filtered)} ({(len(df) - len(length_filtered)) / len(df):.2%})\n')
+logger.info(f'Total interactions: {len(filtered_df)}')
+logger.info(f'Interactions after filtering by length: {len(length_filtered_df)}')
+logger.info(f'Interactions removed: {len(filtered_df) - len(length_filtered_df)} ({(len(filtered_df) - len(length_filtered_df)) / len(filtered_df):.2%})\n')
 
 # Save filtered DataFrame
 logger.info(f'Saving filtered interactions to {paths.INTACT / "2026-01-09" / "filtered.txt"}...')
-length_filtered.to_csv(
+length_filtered_df.to_csv(
     paths.INTACT / '2026-01-09' / 'filtered.txt',
     sep='\t',
     index=False,
 )
 
 # Get sequences corresponding to the filtered interactions
-accessions_A = length_filtered['#ID(s) interactor A'].apply(lambda x: x.split(':')[1])
-accessions_B = length_filtered['ID(s) interactor B'].apply(lambda x: x.split(':')[1])
-filtered_accessions = set(pd.concat([accessions_A, accessions_B]).unique())
+filtered_accessions = set(pd.concat([
+    length_filtered_df['#ID(s) interactor A'],
+    length_filtered_df['ID(s) interactor B']
+]).unique())
 filtered_records = []
 for header, sequence in short_records:
     accession = header.split('|')[1]
