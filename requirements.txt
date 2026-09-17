@@ -4,3 +4,4 @@ pip install -e .
 pip install tqdm                      # 4.70.0
 pip install seaborn                   # 0.13.2
 pip install requests                  # 2.34.2
+pip install markov_clustering[drawing]# 0.0.6
