@@ -21,6 +21,7 @@ DATA = PROJECT / 'data'
 INTACT = DATA / 'intact'
 HMMER = DATA / 'hmmer'
 FAMILIES = DATA / 'families'
+COLLECTIONS = DATA / 'collections'
 
 # Miscellaneous directories
 REPORTS = PROJECT / 'reports'
