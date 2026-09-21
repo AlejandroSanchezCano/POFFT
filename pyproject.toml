@@ -10,5 +10,6 @@ version = "0.1.0"
 packages = [
     "intact",
     "misc",
-    "families"
+    "families",
+    "entity"
 ]
