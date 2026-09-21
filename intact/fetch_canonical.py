@@ -28,6 +28,7 @@ from tqdm import tqdm
 
 # Custom modules
 from misc import paths
+from misc import config
 from fasta import Fasta
 from misc.logger import logger
 from uniprotjob import UniProtJob
@@ -44,7 +45,7 @@ PAGINATION_SIZE = 400
 # Gather accessions
 logger.info('Obtaining UniProt accessions...')
 df = pd.read_csv(
-    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
+    paths.INTACT / config.INTACT_VERSION / 'uniprot_nr.txt',
     sep='\t',
 )
 accessions_A = df['#ID(s) interactor A']
@@ -56,7 +57,7 @@ logger.info(f'Total canonical accessions: {len(accessions)}')
 
 # Accession mapping
 logger.info('Loading accession mapping json...')
-mapper_path = paths.INTACT / '2026-01-09' / 'accession_mapping.json'
+mapper_path = paths.INTACT / config.INTACT_VERSION / 'accession_mapping.json'
 with open(mapper_path, 'r') as handle:
     accession_mapping = json.load(handle)
 
@@ -127,7 +128,7 @@ for idx, batch in enumerate(tqdm(batches, desc="Processing batches")):
     logger.info(f"Downloaded {len(fasta)} sequences from batch {idx + 1}")
 
 # Save FASTA records to file
-out_path = paths.INTACT / '2026-01-09' / 'sequences.fasta'
+out_path = paths.INTACT / config.INTACT_VERSION / 'sequences.fasta'
 fasta = Fasta.from_records(fasta_records)
 fasta.write(out_path=out_path, mode='a')
 logger.info(f"{len(fasta)} sequences saved to {out_path}")

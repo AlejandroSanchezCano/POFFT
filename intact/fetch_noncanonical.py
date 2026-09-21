@@ -23,6 +23,7 @@ from tqdm import tqdm
 
 # Custom modules
 from misc import paths
+from misc import config
 from fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
@@ -34,7 +35,7 @@ MAX_ATTEMPTS = 5
 # Gather accessions``
 logger.info('Obtaining UniProt accessions...')
 df = pd.read_csv(
-    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
+    paths.INTACT / config.INTACT_VERSION / 'uniprot_nr.txt',
     sep='\t',
 )
 accessions_A = df['#ID(s) interactor A']
@@ -88,12 +89,12 @@ for accession in tqdm(noncanonical, desc='Fetching non-canonical sequences'):
 
 # Save the fetched sequences to a FASTA file
 logger.info('Saving fetched sequences to FASTA file...')
-out_path = paths.INTACT / '2026-01-09' / 'sequences.fasta'
+out_path = paths.INTACT / config.INTACT_VERSION / 'sequences.fasta'
 fasta = Fasta.concatenate(fastas)
 fasta.write(out_path)
 
 # Save accession mapper
-mapper_path = paths.INTACT / '2026-01-09' / 'accession_mapping.json'
+mapper_path = paths.INTACT / config.INTACT_VERSION / 'accession_mapping.json'
 with open(mapper_path, 'w') as handle:
     json.dump(accession_mapping, handle, indent=4)
 

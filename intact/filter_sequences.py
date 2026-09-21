@@ -22,6 +22,7 @@ from tqdm import tqdm
 
 # Custom modules
 from misc import paths
+from misc import config
 from fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
@@ -32,12 +33,12 @@ logger.info('Importing modules completed')
 
 # Load dataframe
 df = pd.read_csv(
-    paths.INTACT / '2026-01-09' / 'uniprot_nr.txt',
+    paths.INTACT / config.INTACT_VERSION / 'uniprot_nr.txt',
     sep='\t',
 )
 
 # Load accession mapping
-mapper_path = paths.INTACT / '2026-01-09' / 'accession_mapping.json'
+mapper_path = paths.INTACT / config.INTACT_VERSION / 'accession_mapping.json'
 with open(mapper_path, 'r') as handle:
     accession_mapping = json.load(handle)
 
@@ -52,7 +53,7 @@ df['ID(s) interactor B'] = df['ID(s) interactor B'].apply(mapping)
 ###############################################################################
 
 # UniProt accessions from headers
-fasta_path = paths.INTACT / '2026-01-09' / 'sequences.fasta'
+fasta_path = paths.INTACT / config.INTACT_VERSION / 'sequences.fasta'
 fasta = Fasta.from_file(fasta_path)
 fasta_accessions = [header.split('|')[1] for header in fasta.headers]
 logger.info(f'Total UniProt accessions in fasta file: {len(fasta_accessions)}')
@@ -116,9 +117,9 @@ logger.info(f'Interactions after filtering by length: {len(length_filtered_df)}'
 logger.info(f'Interactions removed: {len(filtered_df) - len(length_filtered_df)} ({(len(filtered_df) - len(length_filtered_df)) / len(filtered_df):.2%})\n')
 
 # Save filtered DataFrame
-logger.info(f'Saving filtered interactions to {paths.INTACT / "2026-01-09" / "filtered.txt"}...')
+logger.info(f'Saving filtered interactions...')
 length_filtered_df.to_csv(
-    paths.INTACT / '2026-01-09' / 'filtered.txt',
+    paths.INTACT / config.INTACT_VERSION / 'filtered.txt',
     sep='\t',
     index=False,
 )
@@ -138,7 +139,7 @@ for header, sequence in short_records:
 logger.info(f'Sequences with length < 800 from filtered interactions: {len(filtered_records)}')
     
 # Save filtered fasta file
-logger.info(f'Saving filtered sequences to {paths.INTACT / "2026-01-09" / "filtered.fasta"}...')
+logger.info(f'Saving filtered sequences...')
 fasta = Fasta.from_records(filtered_records)
-out_file = paths.INTACT / '2026-01-09' / 'filtered.fasta'
+out_file = paths.INTACT / config.INTACT_VERSION / 'filtered.fasta'
 fasta.write(out_file)

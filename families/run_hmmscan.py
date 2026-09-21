@@ -18,6 +18,7 @@ import subprocess
 
 # Custom modules
 from misc import paths
+from misc import config
 from fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
@@ -50,7 +51,7 @@ if not (paths.HMMER / 'Pfam-A.hmm').exists():
 ###############################################################################
 
 # Get fasta
-file_path = paths.INTACT / '2026-01-09' / 'filtered.fasta'
+file_path = paths.INTACT / config.INTACT_VERSION / 'filtered.fasta'
 records = Fasta.from_file(file_path).records[TASK::TOTAL_TASKS]
 logger.info(f"Task {TASK}: Processing {len(records)} records from {file_path}")
 with tempfile.NamedTemporaryFile(mode='w', suffix='.fasta') as temp_file:

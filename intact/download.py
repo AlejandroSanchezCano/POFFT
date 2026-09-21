@@ -15,13 +15,14 @@ Time:       7 min
 import pandas as pd
 
 # Custom modules
-from intact import IntAct
 from misc import paths
+from misc import config
+from intact import IntAct
 from misc.logger import logger
 logger.info('Importing modules completed')
 
 # Download IntAct data
-intact = IntAct(version='2026-01-09')
+intact = IntAct(version=config.INTACT_VERSION)
 intact.download_files()
 
 # Read the intact.txt file into a dataframe

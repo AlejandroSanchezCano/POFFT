@@ -37,13 +37,10 @@ import markov_clustering as mcl
 
 # Custom modules
 from misc import paths
+from misc import config
 from misc.logger import logger
 from domtblout import Domtblout
 logger.info('Importing modules completed')
-
-# Variables
-IEVALUE_THRESHOLD = 1e-5
-OVERLAP_THRESHOLD = 0.75
 
 ###############################################################################
 #######                       CONSTRUCT NETWORK                         #######
@@ -56,16 +53,16 @@ domtblout = Domtblout.from_df_file(domtblout_file)
 # Filter by i_evalue threshold
 domtblout.evalue_filter(
     field='i_evalue', 
-    threshold=IEVALUE_THRESHOLD
+    threshold=config.IEVALUE_THRESHOLD
 )
 logger.info(
-    f'Filtered Pfam hits by i_evalue threshold of {IEVALUE_THRESHOLD}, '
+    f'Filtered Pfam hits by i_evalue threshold of {config.IEVALUE_THRESHOLD}, '
     f'keeping {len(domtblout.df)} hits and '
     f'{len(domtblout.df["query_name"].unique())} unique queries'
 )
 
 # Accession-to-architecture mapping
-accession2architecture, _ = domtblout.solve_overlap(threshold=OVERLAP_THRESHOLD)
+accession2architecture, _ = domtblout.solve_overlap(config.OVERLAP_THRESHOLD)
 
 # Since we have previously filtered interactions based on whether both proteins
 # had hmmscan hits, we should construct the graph based on the accessions from

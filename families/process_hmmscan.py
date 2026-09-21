@@ -18,13 +18,11 @@ import pandas as pd
 
 # Custom modules
 from misc import paths
+from misc import config
 from fasta import Fasta
 from misc.logger import logger
 from domtblout import Domtblout
 logger.info('Importing modules completed')
-
-# Variables
-IEVALUE_THRESHOLD = 1e-5
 
 ###############################################################################
 #######                     MERGE DOMTBLOUT FILES                       #######
@@ -61,10 +59,10 @@ df.to_csv(
 # Filter by i_evalue threshold
 domtblout.evalue_filter(
     field='i_evalue', 
-    threshold=IEVALUE_THRESHOLD
+    threshold=config.IEVALUE_THRESHOLD
 )
 logger.info(
-    f'Filtered Pfam hits by i_evalue threshold of {IEVALUE_THRESHOLD}, '
+    f'Filtered Pfam hits by i_evalue threshold of {config.IEVALUE_THRESHOLD}, '
     f'keeping {len(domtblout.df)} hits and '
     f'{len(domtblout.df["query_name"].unique())} unique queries'
 )
@@ -72,7 +70,7 @@ logger.info(
 # Load interactions
 logger.info(f'Loading interactions file...')
 interactions = pd.read_csv(
-    paths.INTACT / '2026-01-09' / 'filtered.txt',
+    paths.INTACT / config.INTACT_VERSION / 'filtered.txt',
     sep='\t',
 )
 logger.info(f'Total interactions: {len(interactions)}')
@@ -103,7 +101,7 @@ with_hits.to_csv(
 )
 
 # Load fasta file
-fasta_path = paths.INTACT / '2026-01-09' / 'filtered.fasta'
+fasta_path = paths.INTACT / config.INTACT_VERSION / 'filtered.fasta'
 fasta = Fasta.from_file(fasta_path)
 
 # Filter fasta records by accessions with hmmscan hits
