@@ -14,10 +14,9 @@ logger.info('Importing modules completed')
 file_path = paths.COLLECTIONS / 'all.prot'
 collection = ProteinCollection(
     file_path=file_path,
-    datasets=["seq"]
+    datasets=['seq']
 )
 proteins = [protein for protein in collection]
-
 
 # Compute and store ESM2 embeddings
 esm2 = ESM2(config.ESM2_MODEL)
@@ -25,8 +24,8 @@ for protein in tqdm(proteins, desc='Computing ESM2 embeddings'):
     data = [('Protein', protein.seq)]
     esm2.prepare_data(data)
     esm2.run_model()
-    perresidue, _ = esm2.extract_representations()
-    protein.esm2_embeddings[config.ESM2_MODEL] = perresidue
+    _, persequence = esm2.extract_representations()
+    protein.esm2_embeddings[config.ESM2_MODEL] = persequence
 
 # Save updated proteins
 collection = ProteinCollection(

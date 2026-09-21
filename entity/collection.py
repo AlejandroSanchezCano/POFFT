@@ -364,9 +364,7 @@ class ProteinCollection(Collection):
         for model in group:
             dataset = f"esm2_embeddings/{model}"
             if not self._should_load(dataset): continue
-            flatted = group[model][idx]
-            dim = self.ESM_MODELS_DIMS.get(model)
-            embeddings[model] = flatted.reshape(-1, dim)
+            embeddings[model] = group[model][idx]
 
         return embeddings
 
@@ -490,16 +488,11 @@ class ProteinCollection(Collection):
         
         # Iterate over models and save embeddings
         for model in self.items[0].esm2_embeddings.keys():
-            embeddings = [item.esm2_embeddings[model] for item in self.items]
+            dt = np.float32
             embeddings = [
-                (
-                    embedding.flatten()
-                    if embedding is not None
-                    else np.array([], dtype=np.float32)
-                )
-                for embedding in embeddings
-            ] # vlen supports 1D only
-            dt = h5py.vlen_dtype(np.dtype('float32'))
+                item.esm2_embeddings[model] 
+                for item in self.items
+            ]
             array = np.array(embeddings, dtype=dt)
             group = self._save(group, model, array, dt)
 
