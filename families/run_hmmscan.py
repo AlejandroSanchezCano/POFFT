@@ -19,7 +19,7 @@ import subprocess
 # Custom modules
 from misc import paths
 from misc import config
-from fasta import Fasta
+from tools.fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
 

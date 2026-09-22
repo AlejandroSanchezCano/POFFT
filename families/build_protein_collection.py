@@ -7,8 +7,8 @@ from tqdm import tqdm
 
 # Custom modules
 from misc import paths
-from fasta import Fasta
 from misc.logger import logger
+from tools.fasta import Fasta
 from entity.protein import Protein
 from entity.collection import ProteinCollection
 logger.info('Importing modules completed')

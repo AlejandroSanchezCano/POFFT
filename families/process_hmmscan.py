@@ -19,7 +19,7 @@ import pandas as pd
 # Custom modules
 from misc import paths
 from misc import config
-from fasta import Fasta
+from tools.fasta import Fasta
 from misc.logger import logger
 from domtblout import Domtblout
 logger.info('Importing modules completed')

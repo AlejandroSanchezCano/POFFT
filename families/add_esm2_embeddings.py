@@ -3,9 +3,9 @@
 from tqdm import tqdm
 
 # Custom modules
-from esm2 import ESM2
 from misc import paths
 from misc import config
+from tools.esm2 import ESM2
 from misc.logger import logger
 from entity.collection import ProteinCollection
 logger.info('Importing modules completed')
