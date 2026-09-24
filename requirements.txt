@@ -10,3 +10,4 @@ pip install torch                     # 2.14.0
 pip install umap-learn[plot]          # 0.5.12
 pip install plotly                    # 6.4.0
 pip install transformers              # 5.17.0
+pip install torchtyping               # 0.1.5

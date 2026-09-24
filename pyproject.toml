@@ -12,5 +12,7 @@ packages = [
     "intact",
     "misc",
     "families",
-    "entity"
+    "entity",
+    "baseline",
+    "core"
 ]

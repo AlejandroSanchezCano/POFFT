@@ -38,6 +38,7 @@ class ESM2:
     }
 
     def __init__(self, model: str):
+        # Model and tokenizer
         self.model, self.tokenizer = self._load(model)
         self.num_layers = self.model.config.num_hidden_layers
         self.num_heads = self.model.config.num_attention_heads
@@ -46,7 +47,10 @@ class ESM2:
             param.numel() 
             for param in self.model.parameters()
         )
-        self.output = None
+
+        # Output placeholders
+        self.tokenizer_output = None
+        self.model_output = None
 
     def _load(self, model: str) -> tuple['EsmModel', 'EsmTokenizer']:
         '''
@@ -85,23 +89,45 @@ class ESM2:
 
         return model, tokenizer
 
-    def run(self, seq: str) -> None:
+    def _validate(self, seq: str) -> None:
         '''
-        Runs the ESM2 model on a single protein sequence.
+        Validates a protein sequence.
 
         Parameters
         ----------
         seq : str
-            The protein sequence to run the model on.
+            The protein sequence to validate.
         '''
-        # Validation
-        if isinstance(seq, list):
-            raise ValueError("Single sequence!")
         if len(seq) > 1400:
             raise ValueError("Too large of a protein!")
         tokens = re.findall(r'<[^>]+>|.', seq)
         if not all(token in self.tokenizer.get_vocab() for token in tokens):
             raise ValueError("Invalid amino acid(s) in sequence!")
+
+    def tokenize(
+        self, 
+        seq: str | list[str]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        '''
+        Tokenizes a protein sequence or a list of sequences.
+
+        Parameters
+        ----------
+        seq : str or list[str]
+            The protein sequence(s) to tokenize.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            A tuple containing the input IDs and attention mask tensors.
+        '''
+        # Listify
+        if isinstance(seq, str):
+            seq = [seq]
+
+        # Validation
+        for sequence in seq:
+            self._validate(sequence)
 
         # Tokenization
         inputs = self.tokenizer(
@@ -115,11 +141,17 @@ class ESM2:
         input_ids = inputs['input_ids'].cuda()
         attention_mask = inputs['attention_mask'].cuda()
 
-        # Run the model
+        self.tokenizer_output = (input_ids, attention_mask)
+        return input_ids, attention_mask
+
+    def run(self) -> None:
+        '''
+        Runs the ESM2 model.
+        '''
         with torch.no_grad():
-            self.output = self.model(
-                input_ids=input_ids, 
-                attention_mask=attention_mask,
+            self.model_output = self.model(
+                input_ids=self.tokenizer_output[0], 
+                attention_mask=self.tokenizer_output[1],
                 output_hidden_states=True,
                 output_attentions=True,
                 return_dict=True
@@ -152,7 +184,7 @@ class ESM2:
             The extracted representation.
         '''
         # Hidden state
-        hidden_state = self.output.hidden_states[layer] # (batch, seq_len, hidden_size)
+        hidden_state = self.model_output.hidden_states[layer] # (batch, seq_len, hidden_size)
 
         # Remove special tokens if requested
         if not special_tokens:
@@ -170,5 +202,7 @@ class ESM2:
 
 if __name__ == "__main__":
     esm2 = ESM2('8M')
-    esm2.run("KTAYIAKQRQISFVKSHFSRQDILDLWYHTQGYFPDWQNYTPGPGIRYPLKF")
+    esm2.tokenize("KTAYIAKQRQISFVKSHFSRQDILDLWYHTQGYFPDWQNYTPGPGIRYPLKF")
+    esm2.run()
     embedding = esm2.representation(layer=-1, per='residue')
+    print(embedding)
