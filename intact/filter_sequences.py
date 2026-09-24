@@ -23,7 +23,7 @@ from tqdm import tqdm
 # Custom modules
 from misc import paths
 from misc import config
-from tools.fasta import Fasta
+from tool.fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
 
