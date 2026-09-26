@@ -25,7 +25,7 @@ class Frozen(nn.Module):
     def forward(
         self, 
         x
-        ) -> TensorType["batch"]:
+    ) -> TensorType["batch"]:
 
         # Frozen encoder forward pass
         p1input_ids, p1attention_mask = x[0]

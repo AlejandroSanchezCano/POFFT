@@ -13,6 +13,6 @@ packages = [
     "misc",
     "families",
     "entity",
-    "baseline",
+    "model",
     "core"
 ]
