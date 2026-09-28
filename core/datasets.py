@@ -14,6 +14,7 @@ import torch
 from torch.utils.data import Dataset
 
 # Custom modules
+from misc import config
 from misc.logger import logger
 
 class ProteinDataset(Dataset):
@@ -36,11 +37,23 @@ class ProteinPairDataset(Dataset):
     def __init__(self, pairs: list['ProteinPair']):
         self.pairs = pairs
 
+    # FIXME: samples between two proteins of the the same of diferent main families?
     def log(self) -> None:
+        # General sizes
         logger.info(f"Dataset size: {len(self.pairs)} pairs")
         logger.info(f"Positive pairs: {int(sum(pair.bind for pair in self.pairs))}")
         logger.info(f"Negative pairs: {int(len(self.pairs) - sum(pair.bind for pair in self.pairs))}")
 
+        # Family sizes
+        counts = {family: 0 for family in config.FAMILIES}
+        for pair in self.pairs:
+            counts[pair.p1.family] += 1 if pair.p1.family in counts else 0
+            counts[pair.p2.family] += 1 if pair.p2.family in counts else 0
+        logger.info("Family counts:")
+        for family, count in counts.items():
+            logger.info(f"  {family}: {count} pairs")
+
+        
     def __len__(self) -> int:
         return len(self.pairs)
     
@@ -58,9 +71,9 @@ class ProteinPairDataset(Dataset):
 if __name__ == "__main__":
     from entity.protein import Protein
     from entity.pair import ProteinPair
-    p1 = Protein(seq="MK", taxon=9606, uniprot="P12345")
-    p2 = Protein(seq="ACDE", taxon=9606, uniprot="Q67890")
-    p3 = Protein(seq="FGHI", taxon=9606, uniprot="P54321")
+    p1 = Protein(seq="MK", taxon=9606, uniprot="P12345", family='PK_Tyr_Ser-Thr, Pkinase', architecture='PK_Tyr_Ser-Thr, Pkinase')
+    p2 = Protein(seq="ACDE", taxon=9606, uniprot="Q67890", family='HSP70, MreB_Mbl', architecture='HSP70, MreB_Mbl')
+    p3 = Protein(seq="FGHI", taxon=9606, uniprot="P54321", family='PK_Tyr_Ser-Thr, Pkinase', architecture='PK_Tyr_Ser-Thr, Pkinase')
     pair1 = ProteinPair(p1=p1, p2=p2, bind=1, mi_score=0.8)
     pair2 = ProteinPair(p1=p2, p2=p1, bind=1, mi_score=0.7)
     pair3 = ProteinPair(p1=p1, p2=p3, bind=0, mi_score=0.5)
@@ -68,3 +81,4 @@ if __name__ == "__main__":
     dataset = ProteinPairDataset(pairs)
     for idx in range(len(dataset)):
         print(dataset[idx])
+    dataset.log()
