@@ -134,7 +134,6 @@ class NegativeSampler:
 
         # Sample negative pairs
         pbar = tqdm(total=requested_negatives, desc='Sampling negative pairs')
-        count = 0
         with pbar:
             while len(self.negative_pairs) / len(self.positive_pairs) < ratio:
                 pair = self._sample()
@@ -142,13 +141,8 @@ class NegativeSampler:
                     logger.debug(f"Accepted pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
                     self.negative_pairs.add(pair)
                     pbar.update(1)
-                    count += 1
                 else:
                     logger.debug(f"Rejected pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
-                
-                if count % 10_000 == 0:
-                    logger.info(f"Sampled {len(self.negative_pairs)} ({len(self.negative_pairs) / len(self.positive_pairs):.2f} ratio). Memory usage: {memory_gb:.2f} GB")
-
 
         return list(self.negative_pairs)
 

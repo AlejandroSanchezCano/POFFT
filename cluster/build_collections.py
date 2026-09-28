@@ -7,7 +7,7 @@ Outline:    Load the necessary data and construct a list of all Protein objects
             pairs, create collection objects and save them.
 Author:     Alejandro Sánchez Cano
 Date:       28/09/2026
-Time:       15 min
+Time:       10 min
 ===============================================================================
 """
 
