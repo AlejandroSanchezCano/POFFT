@@ -19,7 +19,7 @@ import subprocess
 # Custom modules
 from misc import paths
 from misc import config
-from tools.fasta import Fasta
+from tool.fasta import Fasta
 from misc.logger import logger
 logger.info('Importing modules completed')
 
@@ -71,3 +71,4 @@ with tempfile.NamedTemporaryFile(mode='w', suffix='.fasta') as temp_file:
         f' {temp_file.name}'
     )
     subprocess.run(cmd, shell=True, check=True)
+

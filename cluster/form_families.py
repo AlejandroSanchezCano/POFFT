@@ -47,7 +47,7 @@ logger.info('Importing modules completed')
 ###############################################################################
 
 # Load domtblout
-domtblout_file = paths.FAMILIES / 'hmmscan.domtblout'
+domtblout_file = paths.CLUSTER / 'hmmscan.domtblout'
 domtblout = Domtblout.from_df_file(domtblout_file)
 
 # Filter by i_evalue threshold
@@ -62,18 +62,31 @@ logger.info(
 )
 
 # Accession-to-architecture mapping
-accession2architecture, _ = domtblout.solve_overlap(config.OVERLAP_THRESHOLD)
+accession2architecture, _ = domtblout.solve_overlap(
+    alignment='env',
+    threshold=config.OVERLAP_THRESHOLD
+)
 
+# Save mapping
+serializable_accession2architecture = {
+    accession: architecture.architecture # json serializable
+    for accession, architecture in accession2architecture.items()
+}
+with open(paths.CLUSTER / 'accession2architecture.json', 'w') as handle:
+    json.dump(serializable_accession2architecture, handle, indent=4)
+
+# DISCLAIMER
+# ----------
 # Since we have previously filtered interactions based on whether both proteins
 # had hmmscan hits, we should construct the graph based on the accessions from
-# the filtered set of proteins. However, in our case, there number of queries
+# the filtered set of proteins. However, in our case, the number of queries
 # with hmmscan hits (76,083) is the same as the number of accessions in the
 # domtblout file (76,083). This means that no additional protein has been 
 # affected by their partner being filtered out. Therefore, we can proceed.
 # Else, it would not matter much because the upcoming analysis will be made on
 # interaction and sequence files, which are properly filtered. The only thing
 # affected is the graph construction, which would give a graph with more nodes
-# and edges, but that is not a problem. This, this is just a disclaimer.
+# and edges, but that is not a problem.
 
 # Reverse mapping: PFAM to accessions
 pfam2accessions = defaultdict(set) # avoids self-loops in the graph
@@ -112,7 +125,7 @@ logger.info(
 # Run MCL clustering
 matrix = nx.to_scipy_sparse_array(graph).asformat("csr")
 matrix = scipy.sparse.csr_matrix(matrix)
-result = mcl.run_mcl(matrix, inflation=1.1)           
+result = mcl.run_mcl(matrix)           
 clusters = mcl.get_clusters(result)
 logger.info(f'Found {len(clusters)} clusters using MCL')
 
@@ -137,5 +150,5 @@ for idx, cluster in enumerate(clusters):
         accession2representative[accession] = representative
 
 # Save mapping
-with open(paths.FAMILIES / 'accession2representative.json', 'w') as handle:
+with open(paths.CLUSTER / 'accession2representative.json', 'w') as handle:
     json.dump(accession2representative, handle, indent=4)

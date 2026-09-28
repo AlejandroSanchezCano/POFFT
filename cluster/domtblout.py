@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 # Custom modules
-from domain_architecture import DomainArchitecture
+from cluster.domain_architecture import DomainArchitecture
 
 class Domtblout:
 
@@ -212,7 +212,7 @@ class Domtblout:
         for row in df.itertuples():
             
             # Gather information
-            domain_name = row.pfam_accession
+            domain_name = row.target_name
             accession_name = row.query_name.split('|')[1]
             hit_start = getattr(row, f"{alignment}_from")
             hit_end = getattr(row, f"{alignment}_to")

@@ -47,7 +47,7 @@ logger.info(
 
 # Save combined dataframe
 df.to_csv(
-    paths.FAMILIES / 'hmmscan.domtblout', 
+    paths.CLUSTER / 'hmmscan.domtblout', 
     index=False,
     sep='\t'
 )
@@ -95,7 +95,7 @@ logger.info(
 # Save interaction file
 logger.info(f'Saving filtered interactions...')
 with_hits.to_csv(
-    paths.FAMILIES / 'interactions.txt',
+    paths.CLUSTER / 'interactions.txt',
     sep='\t',
     index=False,
 )
@@ -124,4 +124,4 @@ logger.info(
 # Save filtered fasta file
 logger.info(f'Saving filtered sequences...')
 fasta = Fasta.from_records(matching_records)
-fasta.write(paths.FAMILIES / 'sequences.fasta')
+fasta.write(paths.CLUSTER / 'sequences.fasta')

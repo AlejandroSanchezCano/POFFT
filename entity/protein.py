@@ -24,7 +24,8 @@ class Protein:
     seq: str = None
     uniprot: str = None
     taxon: int = None
-    family: list[list[str]] = field(default_factory=list)
+    family: str = None
+    architecture: str = None
     esm2_embeddings: dict[str, list[float]] = field(default_factory=dict)
 
     def __eq__(self, other: 'Protein') -> bool:

@@ -14,10 +14,15 @@ Date:       21/09/2026
 import random
 from collections import defaultdict
 
+# Third-party modules
+from tqdm import tqdm
+
 # Custom modules
+from misc import config
 from misc.logger import logger
 from entity.protein import Protein
 from entity.pair import ProteinPair
+from domain_architecture import DomainArchitecture
 
 class NegativeSampler:
 
@@ -26,11 +31,18 @@ class NegativeSampler:
         positive_pairs: list[ProteinPair],
         seed: int | None = 42,
     ):
+        # Init variables
         self.positive_pairs = set(positive_pairs)
         if len(self.positive_pairs) != len(positive_pairs):
             raise ValueError("Duplicate pairs found in positive_pairs.")
         self.negative_pairs = set()
         self.rng = random.Random(seed)
+
+        # Cache variables
+        degree = self._degree()
+        self._population = list(degree.keys())
+        self._weights = list(degree.values())
+        self._families = set(config.FAMILIES)
 
     def _degree(self) -> dict[Protein, int]:
         """
@@ -62,15 +74,14 @@ class NegativeSampler:
         ProteinPair
             A randomly sampled negative ProteinPair object.
         """
-        degree_dict = self._degree()
-        pair = self.rng.choices(
-            population=list(degree_dict.keys()),
-            weights=list(degree_dict.values()),
+        p1, p2 = self.rng.choices(
+            population=self._population,
+            weights=self._weights,
             k=2
         )
         return ProteinPair(
-            p1=pair[0], 
-            p2=pair[1], 
+            p1=p1, 
+            p2=p2, 
             bind=0, 
             mi_score=None
         )
@@ -86,13 +97,11 @@ class NegativeSampler:
             Whether to reject or preserve the sampled pair.
         """
         return (
+            (pair.p1.family not in self._families and pair.p2.family not in self._families) or
             pair in self.positive_pairs or 
             pair in self.negative_pairs or
             pair.p1 == pair.p2
         )
-
-    def _validate_ratio(self):
-        pass
 
     def sample(self, ratio: int = 10) -> list[ProteinPair]:
         """
@@ -110,7 +119,7 @@ class NegativeSampler:
             A list of sampled negative ProteinPair objects.
         """
         # Validate ratio
-        total_proteins = len(self._degree())
+        total_proteins = len(self._population)
         total_pairs = total_proteins * (total_proteins - 1) // 2
         homodimers = sum(1 for pair in self.positive_pairs if pair.p1 == pair.p2)
         max_negatives = total_pairs - len(self.positive_pairs) + homodimers
@@ -124,13 +133,23 @@ class NegativeSampler:
             )
 
         # Sample negative pairs
-        while len(self.negative_pairs) / len(self.positive_pairs) < ratio:
-            pair = self._sample()
-            if not self._reject(pair):
-                logger.debug(f"Accepted pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
-                self.negative_pairs.add(pair)
-            else:
-                logger.debug(f"Rejected pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
+        pbar = tqdm(total=requested_negatives, desc='Sampling negative pairs')
+        count = 0
+        with pbar:
+            while len(self.negative_pairs) / len(self.positive_pairs) < ratio:
+                pair = self._sample()
+                if not self._reject(pair):
+                    logger.debug(f"Accepted pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
+                    self.negative_pairs.add(pair)
+                    pbar.update(1)
+                    count += 1
+                else:
+                    logger.debug(f"Rejected pair: {pair.p1.uniprot}-{pair.p2.uniprot}")
+                
+                if count % 10_000 == 0:
+                    logger.info(f"Sampled {len(self.negative_pairs)} ({len(self.negative_pairs) / len(self.positive_pairs):.2f} ratio). Memory usage: {memory_gb:.2f} GB")
+
+
         return list(self.negative_pairs)
 
 if __name__ == "__main__":
@@ -147,9 +166,8 @@ if __name__ == "__main__":
 
     positive_pairs = [pair1, pair2, pair3, pair4]
     sampler = NegativeSampler(positive_pairs=positive_pairs)
-    degree_dict = sampler._degree()
-    print(degree_dict)
+    print(sampler.degree)
     print('\n')
     print(sampler._sample())
     print('\n')
-    print(sampler.sample())
+    print(sampler.sample(ratio=0.5))

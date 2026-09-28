@@ -20,7 +20,7 @@ TOOLS = CHONKY / 'tools'
 DATA = PROJECT / 'data'
 INTACT = DATA / 'intact'
 HMMER = DATA / 'hmmer'
-FAMILIES = DATA / 'families'
+CLUSTER = DATA / 'cluster'
 COLLECTIONS = DATA / 'collections'
 
 # Miscellaneous directories

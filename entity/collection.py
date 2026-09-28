@@ -197,7 +197,8 @@ class ProteinCollection(Collection):
         "seq": "str",
         "uniprot": "str",
         "taxon": "int",
-        "family": "json",
+        "family": "str",
+        "architecture": "str",
         "esm2_embeddings": "group",
     }
 
