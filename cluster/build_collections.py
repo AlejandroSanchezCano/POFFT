@@ -74,8 +74,8 @@ for header, seq in tqdm(fasta.records, desc='Creating Protein objects'):
         family = 'HSP70, MreB_Mbl'
     # Create Protein object
     protein = Protein(
-        seq=seq, 
         uniprot=uniprot, 
+        seq=seq, 
         taxon=taxon, 
         family=family,
         architecture=architecture
@@ -120,9 +120,9 @@ logger.info(f"Number of pairs in selected families: {len(pairs)}")
 protein_path = paths.COLLECTIONS / 'families.prot'
 collection = ProteinCollection(
     file_path=protein_path,
-    items=proteins
+    proteins=proteins
 )
-collection.to_hdf5()
+collection.save()
 
 # Sample negative pairs
 sampler = NegativeSampler(positive_pairs=pairs)
@@ -134,6 +134,6 @@ pair_path = paths.COLLECTIONS / 'families.pair'
 collection = ProteinPairCollection(
     file_path=pair_path,
     proteins=proteins,
-    items=pairs + negative_pairs
+    pairs=pairs + negative_pairs
 )
-collection.to_hdf5()
+collection.save()

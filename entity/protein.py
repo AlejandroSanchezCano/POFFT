@@ -7,8 +7,6 @@ Outline:    Protein dataclass that represents a protein entity.
             - seq: Protein sequence (or file path to pickled Protein object).
             - uniprot: UniProt ID.
             - taxon: Taxon ID (e.g. 9606).
-            - esm2_embeddings: ESM2 per-residue embeddings mapped by model
-                name, e.g. {'650M': [...], '3B': [...]}
 Author:     Alejandro Sánchez Cano
 Date:       17/09/2026
 ===============================================================================
@@ -26,7 +24,6 @@ class Protein:
     taxon: int = None
     family: str = None
     architecture: str = None
-    esm2_embeddings: dict[str, list[float]] = field(default_factory=dict)
 
     def __eq__(self, other: 'Protein') -> bool:
         return self.seq == other.seq and self.taxon == other.taxon
