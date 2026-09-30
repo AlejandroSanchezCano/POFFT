@@ -1,3 +1,14 @@
+"""
+===============================================================================
+Title:      Frozen
+Outline:    This module defines the Frozen model, which consists of a frozen
+            encoder (ESM2) and a trainable classification head. The encoder's
+            parameters are frozen to prevent updates during training, while the
+            classification head is trainable.
+Author:     Alejandro Sánchez Cano
+Date:       24/09/2026
+===============================================================================
+"""
 
 # Third-party modules
 import torch
@@ -24,35 +35,46 @@ class Frozen(nn.Module):
 
     def forward(
         self, 
-        x
+        x: tuple[
+            tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
+            tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
+        ]
     ) -> TensorType["batch"]:
+        '''
+        Forward step
 
-        # Frozen encoder forward pass
-        p1input_ids, p1attention_mask = x[0]
-        p2input_ids, p2attention_mask = x[1]
+        Parameters
+        ----------
+        x : tuple
+            Tuple containing two tuples, each with (input_ids, attention_mask)
+            for the two protein sequences.
 
+        Returns
+        -------
+        TensorType["batch"]
+            Logits for the classification task.
+        '''
+        # Unpack inputs
+        (ids1, mask1), (ids2, mask2) = x
+
+        # Forward pass through the encoder
         with torch.no_grad():
-            p1outputs = self.encoder(
-                input_ids=p1input_ids,
-                attention_mask=p1attention_mask,
+            output1 = self.encoder(
+                input_ids=ids1,
+                attention_mask=mask1,
             )
-
-            p2outputs = self.encoder(
-                input_ids=p2input_ids,
-                attention_mask=p2attention_mask,
+            output2 = self.encoder(
+                input_ids=ids2,
+                attention_mask=mask2,
             )
 
         # Pool embeddings
-        p1hidden = p1outputs.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
-        p2hidden = p2outputs.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
-        print(f'p1hidden shape: {p1hidden.shape}, p2hidden shape: {p2hidden.shape}')
-        hidden = torch.cat([p1hidden, p2hidden], dim=2) # (batch, seq_len, hidden_size*2)
-        print(f'Concatenated hidden shape: {hidden.shape}')
-        pooled = hidden.mean(dim=1) # (batch, hidden_size)
-        print(f'Pooled shape: {pooled.shape}')
+        hidden1 = output1.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
+        hidden2 = output2.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
+        hidden = torch.cat([hidden1, hidden2], dim=2) # (batch, seq_len, hidden_size*2)
+        pooled = hidden.mean(dim=1) # (batch, hidden_size*2)
 
-        # Pass through the classification head
+        # Forward pass through the classification head
         logits = self.head(pooled) # (batch)
-        print(f'Logits shape: {logits.shape}')
 
         return logits

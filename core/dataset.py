@@ -17,21 +17,6 @@ from torch.utils.data import Dataset
 from misc import config
 from misc.logger import logger
 
-class ProteinDataset(Dataset):
-
-    def __init__(self, proteins: list['Protein']):
-        self.proteins = proteins
-
-    def __len__(self) -> int:
-        return len(self.proteins)
-
-    def __getitem__(self, idx: int) -> tuple:
-        return (
-            self.proteins[idx].seq,
-            None,  # Placeholder for label
-            self.proteins[idx].uniprot
-        )
-
 class ProteinPairDataset(Dataset):
 
     def __init__(self, pairs: list['ProteinPair']):
@@ -52,21 +37,26 @@ class ProteinPairDataset(Dataset):
         logger.info("Family counts:")
         for family, count in counts.items():
             logger.info(f"  {family}: {count} pairs")
-
         
     def __len__(self) -> int:
         return len(self.pairs)
     
-    def __getitem__(self, idx: int) -> tuple:
-        return (
-            self.pairs[idx].p1.seq,
-            self.pairs[idx].p2.seq,
-            torch.tensor(self.pairs[idx].bind, dtype=torch.float32),
-            (
-                self.pairs[idx].p1.uniprot, 
-                self.pairs[idx].p2.uniprot
+    def __getitem__(self, idx: int) -> dict:
+        # Get pair
+        pair = self.pairs[idx]
+
+        # Return elements
+        return {
+            'input': (
+                pair.p1.seq,
+                pair.p2.seq
+            ),
+            'label': torch.tensor(pair.bind, dtype=torch.float32),
+            'identifier': (
+                pair.p1.uniprot, 
+                pair.p2.uniprot
             )
-        )
+        }
 
 if __name__ == "__main__":
     from entity.protein import Protein

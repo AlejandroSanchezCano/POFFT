@@ -22,6 +22,7 @@ INTACT = DATA / 'intact'
 HMMER = DATA / 'hmmer'
 CLUSTER = DATA / 'cluster'
 COLLECTIONS = DATA / 'collections'
+MODELS = DATA / 'models'
 
 # Miscellaneous directories
 REPORTS = PROJECT / 'reports'

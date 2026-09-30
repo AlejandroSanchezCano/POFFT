@@ -8,3 +8,6 @@ sh job.sh -u rome -t 01:00:00 -m hmmer -f cluster/run_hmmscan.py --array 0-29
 python cluster/process_hmmscan.py
 python cluster/form_families.py
 sh job.sh -u rome -t 00:30:00 -f cluster/build_collections.py
+
+# Train models
+sh job.sh -t 00:30:00 -f learn/train_frozen.py -e

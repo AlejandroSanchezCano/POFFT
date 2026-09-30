@@ -1,3 +1,11 @@
+"""
+===============================================================================
+Title:      ESM2Embedding
+Outline:    ESM2Embedding class for handling embeddings from the ESM-2 model.
+Author:     Alejandro Sánchez Cano
+Date:       29/09/2026
+===============================================================================
+"""
 
 class ESM2Embedding:
     def __init__(self, embedding: 'torch.Tensor'):

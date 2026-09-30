@@ -136,11 +136,10 @@ class ESM2:
             padding=True,
             truncation=False,
         )
-        
-        # GPU/CPU
-        input_ids = inputs['input_ids'].cuda()
-        attention_mask = inputs['attention_mask'].cuda()
 
+        # Return
+        input_ids = inputs['input_ids']
+        attention_mask = inputs['attention_mask']
         self.tokenizer_output = (input_ids, attention_mask)
         return input_ids, attention_mask
 
@@ -148,10 +147,14 @@ class ESM2:
         '''
         Runs the ESM2 model.
         '''
+        # GPU/CPU
+        input_ids = self.tokenizer_output[0].cuda()
+        attention_mask = self.tokenizer_output[1].cuda()
+
         with torch.no_grad():
             self.model_output = self.model(
-                input_ids=self.tokenizer_output[0], 
-                attention_mask=self.tokenizer_output[1],
+                input_ids=input_ids, 
+                attention_mask=attention_mask,
                 output_hidden_states=True,
                 output_attentions=True,
                 return_dict=True

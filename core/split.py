@@ -74,7 +74,7 @@ class Split:
         k: int,
         cv_size: float = 0.9,
         test_size: float = 0.1
-        ) -> tuple[list[Dataset], list[Dataset], Dataset]:
+    ) -> tuple[list[Dataset], list[Dataset], Dataset]:
         '''
         K-fold split of the dataset into train, validation, and test sets.
 
