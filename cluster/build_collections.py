@@ -14,6 +14,7 @@ Time:       10 min
 # Built-in modules
 import re
 import json
+import random
 
 # Third-party modules
 import pandas as pd
@@ -87,9 +88,19 @@ logger.info(f"Number of total proteins: {len(accession2protein)}")
 #######                      FAMILIES COLLECTIONS                       #######
 ###############################################################################
 
+# Previously we had used a 'proteins' set to store the Protein objects found
+# in the interaction dataset. However, this had the drawback that some two
+# UniProt accessions could point to the same Protein object (e.g. in the case 
+# of P01116-1 and P01116). Instead of putting them together, which I found a 
+# hassle, we keep an 'accessions' set and later recover the Protein objects 
+# from it using the 'accession2protein' dictionary. Thisq way, we manage to
+# avoid duplicates while keeping the code clean. However, this means that we 
+# have itnroduce Protein objects that are technically the same (same sequence
+# and same taxon) but have different UniProt accessions!!!!!!!!!!!!!!!!!!!!!!!!
+
 # Create Protein objects
 pairs = set()
-proteins = set()
+accessions = set()
 for row in tqdm(df.itertuples(index=False, name=None), total=len(df)):
     # Obtain proteins
     protein_A = accession2protein[row[0]]
@@ -98,9 +109,9 @@ for row in tqdm(df.itertuples(index=False, name=None), total=len(df)):
     A_in_families = protein_A.family in config.FAMILIES
     B_in_families = protein_B.family in config.FAMILIES
     if A_in_families or B_in_families:
-        # Add proteins
-        proteins.add(protein_A)
-        proteins.add(protein_B)
+        # Add accessions
+        accessions.add(row[0])
+        accessions.add(row[1])
         # Add pair
         pair = ProteinPair(
             p1=protein_A,
@@ -108,9 +119,10 @@ for row in tqdm(df.itertuples(index=False, name=None), total=len(df)):
             bind=1
         )
         pairs.add(pair)
+
 # Convert to lists
 pairs = list(pairs)
-proteins = list(proteins)
+proteins = [accession2protein[acc] for acc in accessions]
 
 # Logging
 logger.info(f"Number of proteins in selected families: {len(proteins)}")
@@ -128,6 +140,10 @@ collection.save()
 sampler = NegativeSampler(positive_pairs=pairs)
 negative_pairs = sampler.sample(ratio=config.NEGATIVE_TO_POSITIVE_RATIO)
 logger.info(f"Number of sampled negative pairs: {len(negative_pairs)}")
+
+# Shuffle pairs
+random.shuffle(pairs)
+random.shuffle(negative_pairs)
 
 # Create ProteinPairCollection
 pair_path = paths.COLLECTIONS / 'families.pair'
