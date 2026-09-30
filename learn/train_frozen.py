@@ -65,9 +65,9 @@ def collate_fn(batch: list[dict]) -> dict:
         max(len(seq) for seq in seqs2)
     )
 
-    # Tokenize sequences 
-    tokens1 = esm2.tokenize(list(seqs1), max_length=max_length)
-    tokens2 = esm2.tokenize(list(seqs2), max_length=max_length)
+    # Tokenize sequences (+2 for special tokens)
+    tokens1 = esm2.tokenize(list(seqs1), max_length=max_length + 2)
+    tokens2 = esm2.tokenize(list(seqs2), max_length=max_length + 2)
 
     return {
         'inputs': (tokens1, tokens2),

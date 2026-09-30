@@ -149,7 +149,7 @@ class ESM2:
                 return_tensors='pt',
                 padding='max_length',
                 truncation=False,
-                max_length=max_length + 2
+                max_length=max_length
             )
 
         # Return
