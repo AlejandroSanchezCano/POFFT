@@ -68,11 +68,16 @@ class Frozen(nn.Module):
                 attention_mask=mask2,
             )
 
-        # Pool embeddings
+        # Obtain embeddings
         hidden1 = output1.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
         hidden2 = output2.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
-        hidden = torch.cat([hidden1, hidden2], dim=2) # (batch, seq_len, hidden_size*2)
-        pooled = hidden.mean(dim=1) # (batch, hidden_size*2)
+        
+        # Pool embeddings (mean pooling with attention mask)
+        mask1 = mask1[:, 1:-1].unsqueeze(-1) # (batch, seq_len, 1)
+        mask2 = mask2[:, 1:-1].unsqueeze(-1) # (batch, seq_len, 1)
+        pooled1 = (hidden1 * mask1).sum(dim=1) / mask1.sum(dim=1) # (batch, hidden_size)
+        pooled2 = (hidden2 * mask2).sum(dim=1) / mask2.sum(dim=1) # (batch, hidden_size)
+        pooled = torch.cat([pooled1, pooled2], dim=1) # (batch, hidden_size*2)
 
         # Forward pass through the classification head
         logits = self.head(pooled) # (batch)
