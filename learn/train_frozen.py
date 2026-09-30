@@ -81,7 +81,8 @@ train_loader = DataLoader(
     collate_fn=collate_fn,
     batch_size=config.BATCH_SIZE,
     shuffle=True,
-    num_workers=0,
+    num_workers=8,
+    persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
 
@@ -90,7 +91,8 @@ test_loader = DataLoader(
     collate_fn=collate_fn,
     batch_size=config.BATCH_SIZE,
     shuffle=False,
-    num_workers=0,
+    num_workers=8,
+    persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
 
