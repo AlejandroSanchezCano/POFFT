@@ -32,8 +32,10 @@ class ProteinPairDataset(Dataset):
         # Family sizes
         counts = {family: 0 for family in config.FAMILIES}
         for pair in self.pairs:
-            counts[pair.p1.family] += 1 if pair.p1.family in counts else 0
-            counts[pair.p2.family] += 1 if pair.p2.family in counts else 0
+            if pair.p1.family in counts:
+                counts[pair.p1.family] += 1
+            if pair.p2.family in counts:
+                counts[pair.p2.family] += 1
         logger.info("Family counts:")
         for family, count in counts.items():
             logger.info(f"  {family}: {count} pairs")

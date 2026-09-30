@@ -106,7 +106,8 @@ class ESM2:
 
     def tokenize(
         self, 
-        seq: str | list[str]
+        seq: str | list[str],
+        max_length: int | None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         '''
         Tokenizes a protein sequence or a list of sequences.
@@ -115,6 +116,10 @@ class ESM2:
         ----------
         seq : str or list[str]
             The protein sequence(s) to tokenize.
+
+        max_length : int, optional
+            The maximum length for padding. If None, it will use the length of
+            the longest sequence in the batch. Default is None.
 
         Returns
         -------
@@ -129,13 +134,23 @@ class ESM2:
         for sequence in seq:
             self._validate(sequence)
 
-        # Tokenization
-        inputs = self.tokenizer(
-            seq, 
-            return_tensors='pt', 
-            padding=True,
-            truncation=False,
-        )
+        # Tokenization without max_length
+        if max_length is None:
+            inputs = self.tokenizer(
+                seq,
+                return_tensors='pt',
+                padding=True,
+                truncation=False
+            )
+        # Tokenization with max_length
+        else:
+            inputs = self.tokenizer(
+                seq,
+                return_tensors='pt',
+                padding='max_length',
+                truncation=False,
+                max_length=max_length + 2
+            )
 
         # Return
         input_ids = inputs['input_ids']
@@ -204,8 +219,21 @@ class ESM2:
             raise ValueError("Invalid value for 'per'. Must be 'residue' or 'sequence'.")
 
 if __name__ == "__main__":
-    esm2 = ESM2('8M')
-    esm2.tokenize("KTAYIAKQRQISFVKSHFSRQDILDLWYHTQGYFPDWQNYTPGPGIRYPLKF")
-    esm2.run()
-    embedding = esm2.representation(layer=-1, per='residue')
-    print(embedding)
+    #esm2 = ESM2('8M')
+    #esm2.tokenize("KTAYIAKQRQISFVKSHFSRQDILDLWYHTQGYFPDWQNYTPGPGIRYPLKF")
+    #esm2.run()
+    #embedding = esm2.representation(layer=-1, per='residue')
+    #print(embedding)
+    seqs = [
+            'KTAYIAKQRQISFVKSHFSRQDILDLWYHTQGYFPDWQNYTPGPGIRYPLKF', 
+            'MTEITAAMVKELRESTGAGMMDCKNALSETQHEWAY'
+        ]
+    max_length = max(len(seq) for seq in seqs)
+    print(f"Max length: {max_length}")
+
+    esm2 = ESM2('35M')
+    esm2.tokenize(
+        seqs,
+        max_length=max_length
+    )
+    print(esm2.tokenizer_output[0].shape, esm2.tokenizer_output[1].shape)

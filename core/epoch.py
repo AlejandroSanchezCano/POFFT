@@ -13,6 +13,7 @@ from dataclasses import dataclass
 # Third-party modules
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
@@ -30,7 +31,7 @@ class Epoch:
         model: nn.Module,
         loss_fn: nn.Module,
         optimizer: optim.Optimizer,
-        device: torch.device | str = 'cuda',
+        device: torch.device = torch.device('cuda'),
         enable_amp: bool = True,
     ):
         # Instance variables
@@ -95,7 +96,7 @@ class Epoch:
         total_identifiers = []
 
         # Iterate over batches
-        for batch in dataloader:
+        for batch in tqdm(dataloader, desc="Batches", unit="batch"):
 
             # Unpack batch
             tokens1, tokens2 = batch['inputs']
@@ -111,13 +112,16 @@ class Epoch:
             mask2 = mask2.to(self.device)
             labels = labels.to(self.device)
 
+            # Construct model input
+            model_input = ((ids1, mask1), (ids2, mask2))
+
             # Zero gradients
             if training:
                 self.optimizer.zero_grad(set_to_none=True)
             
             # Forward pass with AMP
             with torch.amp.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                logits = self.model((ids1, mask1), (ids2, mask2))
+                logits = self.model(model_input)
                 loss = self.loss_fn(logits, labels)
 
             # Backward pass and optimization

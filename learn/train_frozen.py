@@ -12,9 +12,9 @@ from core.split import Split
 from core.epoch import Epoch
 from misc.logger import logger
 from model.frozen import Frozen
+from core.early_stop import EarlyStop
 from core.performance import Performance
 from core.inspector import ModelInspector
-from core.early_stopping import EarlyStop
 from core.dataset import ProteinPairDataset
 from entity.collection import ProteinPairCollection
 from model.classification_head import ClassificationHead
@@ -58,10 +58,16 @@ def collate_fn(batch: list[dict]) -> dict:
     labels = [item['label'] for item in batch]
     identifiers = [item['identifier'] for item in batch]
     seqs1, seqs2 = zip(*inputs)
-    
+
+    # Maximum sequence length
+    max_length = max(
+        max(len(seq) for seq in seqs1), 
+        max(len(seq) for seq in seqs2)
+    )
+
     # Tokenize sequences 
-    tokens1 = esm2.tokenize(list(seqs1))
-    tokens2 = esm2.tokenize(list(seqs2))
+    tokens1 = esm2.tokenize(list(seqs1), max_length=max_length)
+    tokens2 = esm2.tokenize(list(seqs2), max_length=max_length)
 
     return {
         'inputs': (tokens1, tokens2),
@@ -133,7 +139,7 @@ epoch = Epoch(
 ###############################################################################
 
 # Loop over repetitions
-for rep in tqdm(range(config.REPETITIONS), decs='Repetitions', unit='rep'):
+for rep in tqdm(range(config.REPETITIONS), desc='Repetitions', unit='rep'):
     
     # Loop over epochs
     for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
