@@ -2,6 +2,7 @@
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from transformers import DataCollatorWithPadding
 
 # Custom modules
 from core import seed
@@ -35,8 +36,20 @@ collection = ProteinPairCollection(
     proteins=protein_path,
 )
 
+# Initialize ESM2
+esm2 = ESM2(config.ESM2_MODEL)
+
+# Tokenize sequences
+tokenized = {
+    protein.uniprot: esm2.tokenize(protein.seq)
+    for protein in tqdm(collection.proteins, desc="Tokenizing proteins")
+}
+
 # Create dataset
-dataset = ProteinPairDataset(collection.pairs)
+dataset = ProteinPairDataset(
+    pairs=collection.pairs,
+    tokenized=tokenized
+)
 dataset.log()
 
 # Split dataset
@@ -47,30 +60,44 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     test_size=config.TEST_FRACTION
 )
 
-# Initialize ESM2
-esm2 = ESM2(config.ESM2_MODEL)
-
 # Collate function
 def collate_fn(batch: list[dict]) -> dict:
     
     # Access elements
-    inputs = [item['input'] for item in batch]
+    tokenized = [item['input'] for item in batch]
     labels = [item['label'] for item in batch]
     identifiers = [item['identifier'] for item in batch]
-    seqs1, seqs2 = zip(*inputs)
+    tokenized1, tokenized2 = zip(*tokenized)
 
-    # Maximum sequence length
-    max_length = max(
-        max(len(seq) for seq in seqs1), 
-        max(len(seq) for seq in seqs2)
+    # Dynamic padding
+    collator = DataCollatorWithPadding(
+        tokenizer=esm2.tokenizer,
+        padding=True,
+        return_tensors='pt'
     )
 
-    # Tokenize sequences (+2 for special tokens)
-    tokens1 = esm2.tokenize(list(seqs1), max_length=max_length + 2)
-    tokens2 = esm2.tokenize(list(seqs2), max_length=max_length + 2)
+    # Convert to specific format for collator: dictionary with (seq_len) ids and masks
+    batch1 = [
+        {
+            'input_ids': input_ids.squeeze(0), 
+            'attention_mask': attention_mask.squeeze(0)
+        }
+        for input_ids, attention_mask in tokenized1
+    ]
+    batch2 = [
+        {
+            'input_ids': input_ids.squeeze(0), 
+            'attention_mask': attention_mask.squeeze(0)
+        }
+        for input_ids, attention_mask in tokenized2
+    ]
+
+    # Collate batches
+    collated1 = collator(batch1)
+    collated2 = collator(batch2)
 
     return {
-        'inputs': (tokens1, tokens2),
+        'inputs': (collated1, collated2),
         'labels': torch.stack(labels),
         'identifiers': identifiers
     }

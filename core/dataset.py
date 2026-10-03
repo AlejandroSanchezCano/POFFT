@@ -19,8 +19,13 @@ from misc.logger import logger
 
 class ProteinPairDataset(Dataset):
 
-    def __init__(self, pairs: list['ProteinPair']):
+    def __init__(
+        self, 
+        pairs: list['ProteinPair'],
+        tokenized: dict[str, tuple[torch.Tensor, torch.Tensor]] = None
+    ):
         self.pairs = pairs
+        self.tokenized = tokenized
 
     # FIXME: samples between two proteins of the the same of diferent main families?
     def log(self) -> None:
@@ -50,8 +55,8 @@ class ProteinPairDataset(Dataset):
         # Return elements
         return {
             'input': (
-                pair.p1.seq,
-                pair.p2.seq
+                self.tokenized[pair.p1.uniprot],
+                self.tokenized[pair.p2.uniprot]
             ),
             'label': torch.tensor(pair.bind, dtype=torch.float32),
             'identifier': (
@@ -69,8 +74,13 @@ if __name__ == "__main__":
     pair1 = ProteinPair(p1=p1, p2=p2, bind=1, mi_score=0.8)
     pair2 = ProteinPair(p1=p2, p2=p1, bind=1, mi_score=0.7)
     pair3 = ProteinPair(p1=p1, p2=p3, bind=0, mi_score=0.5)
+    tokenized = {
+        p1.uniprot: (torch.tensor([[1, 2, 3]]), torch.tensor([[1, 1, 1]])),
+        p2.uniprot: (torch.tensor([[4, 5, 6]]), torch.tensor([[1, 1, 1]])),
+        p3.uniprot: (torch.tensor([[7, 8, 9]]), torch.tensor([[1, 1, 1]])),
+    }
     pairs = [pair1, pair2, pair3]
-    dataset = ProteinPairDataset(pairs)
+    dataset = ProteinPairDataset(pairs, tokenized=tokenized)
     for idx in range(len(dataset)):
         print(dataset[idx])
-    dataset.log()
+    #dataset.log()
