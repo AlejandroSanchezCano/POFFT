@@ -76,3 +76,20 @@ class EarlyStop:
                 return True
             return False
 
+if __name__ == "__main__":
+    # Example usage
+    import torch.nn as nn
+
+    # Dummy model
+    model = nn.Linear(10, 1)
+
+    # Early stopping
+    early_stop = EarlyStop(patience=3, min_delta=0.01)
+
+    # Simulate training loop
+    losses = [0.5, 0.4, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]
+    for epoch, loss in enumerate(losses):
+        print(f"Epoch {epoch+1}, Loss: {loss}, Patience: {early_stop.patience}")
+        if early_stop(loss, model):
+            print("Early stopping triggered.")
+            break
