@@ -85,7 +85,15 @@ train_loader = DataLoader(
     persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
-
+val_loader = DataLoader(
+    val_dataset,
+    collate_fn=collate_fn,
+    batch_size=config.BATCH_SIZE,
+    shuffle=False,
+    num_workers=8,
+    persistent_workers=True,
+    worker_init_fn=seed.seed_worker
+)
 test_loader = DataLoader(
     test_dataset,
     collate_fn=collate_fn,
@@ -149,14 +157,15 @@ for rep in tqdm(range(config.REPETITIONS), desc='Repetitions', unit='rep'):
         # Train
         train = epoch.train(train_loader)
         # Evaluate
+        val = epoch.evaluate(val_loader)
         test = epoch.evaluate(test_loader)
         # Performance
         train_perf = Performance(
             true_labels=train.labels,
-            predicted_logits=test.logits,
+            predicted_logits=train.logits,
         )
         test_perf = Performance(
-            true_labels=train.labels,
+            true_labels=test.labels,
             predicted_logits=test.logits
         )
         # Logging
