@@ -33,7 +33,7 @@ class ClassificationHead(nn.Module):
         for hidden_dim in hidden_dims:
             layer = [
                 nn.Linear(prev_dim, hidden_dim),
-                nn.BatchNorm1d(hidden_dim),
+                nn.LayerNorm(hidden_dim),
                 nn.ReLU(),
                 nn.Dropout(dropout)
             ]
