@@ -13,6 +13,7 @@ from core.split import Split
 from core.epoch import Epoch
 from misc.logger import logger
 from model.frozen import Frozen
+from core.tracker import Tracker
 from core.early_stop import EarlyStop
 from core.performance import Performance
 from core.inspector import ModelInspector
@@ -195,6 +196,9 @@ epoch = Epoch(
     optimizer=optimizer,
 )
 
+# Tracker
+tracker = Tracker()
+
 ###############################################################################
 #######                        TRAIN AND EVALUATE                       #######
 ###############################################################################
@@ -209,28 +213,40 @@ for rep in tqdm(range(config.REPETITIONS), desc='Repetitions', unit='rep'):
         train = epoch.train(train_loader)
         # Evaluate
         val = epoch.evaluate(val_loader)
-        test = epoch.evaluate(test_loader)
-        # Performance
-        train_perf = Performance(
-            true_labels=train.labels,
-            predicted_logits=train.logits,
-        )
-        test_perf = Performance(
-            true_labels=test.labels,
-            predicted_logits=test.logits
+        # Track
+        tracker.track(
+            train=train,
+            validation=val,
+            model=model
         )
         # Logging
         logger.info(f'Epoch {epoch_idx+1}/{config.EPOCHS}')
         logger.info(f'Train loss = {train.loss:.4f}')
-        logger.info(f'Test loss = {test.loss:.4f}')
-        logger.info(f'Train balanced accuracy = {train_perf.balanced_accuracy:.4f}')
-        logger.info(f'Test balanced accuracy = {test_perf.balanced_accuracy:.4f}')
+        logger.info(f'Validation loss = {val.loss:.4f}')
+        logger.info(f'Train balanced accuracy = {tracker.performance["train"].balanced_accuracy:.4f}')
+        logger.info(f'Validation balanced accuracy = {tracker.performance["val"].balanced_accuracy:.4f}')
+        logger.info(f'Train AUPRC = {tracker.performance["train"].auprc:.4f}')
+        logger.info(f'Validation AUPRC = {tracker.performance["val"].auprc:.4f}')
+
         # Early stopping
-        if early_stop(loss=result.loss, model=model):
+        if early_stop(loss=val.loss):
             logger.info('Early stopping triggered.')
             break
+    
+    # Best epoch
+    logger.info(f"Epoch {tracker.best_epoch()+1} had the best validation loss: {tracker.best_loss:.4f}")
 
     # Save model
     out_dir = paths.MODELS / model.__class__.__name__.lower() / rep
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(early_stop.best_model, out_dir / 'model.pt')
+    torch.save(tracker.best_model, out_dir / 'model.pt')
+
+    # Plot loss curves
+    tracker.loss_curves(out_dir / 'loss_curves.png')
+
+    # Evaluate on test set
+    best_model = model.load_state_dict(tracker.best_model)
+    epoch.model = best_model
+    test = epoch.evaluate(test_loader)
+    df = test.to_dataframe()
+    df.to_csv(out_dir / 'results.csv', index=False)
