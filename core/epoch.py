@@ -1,9 +1,10 @@
 """
 ===============================================================================
-Title:      Epoch
-Outline:    Epoch class for training and evaluating deep learning models.
+Title:      Tracker
+Outline:    Tracker class for monitoring and visualizing the training process 
+            of deep learning models.
 Author:     Alejandro Sánchez Cano
-Date:       29/09/2026
+Date:       05/10/2026
 ===============================================================================
 """
 
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 
 # Third-party modules
 import torch
+import pandas as pd
 import torch.nn as nn
 from tqdm import tqdm
 import torch.optim as optim
@@ -20,9 +22,17 @@ from torch.utils.data import DataLoader
 @dataclass(frozen=True, slots=True)
 class EpochResult:
     loss: float
-    logits: list
-    labels: list
+    logits: list | 'np.ndarray'
+    labels: list | 'np.ndarray'
     identifiers: list
+
+    def to_dataframe(self) -> pd.DataFrame:
+        '''Convert the epoch result to a pandas DataFrame.'''
+        return pd.DataFrame({
+            'logits': self.logits,
+            'labels': self.labels,
+            'identifiers': self.identifiers
+        })
 
 class Epoch:
 
@@ -47,8 +57,15 @@ class Epoch:
             enabled=self.enable_amp
         )
 
-        # Move model to device
-        self.model.to(self.device)
+    @property
+    def model(self) -> nn.Module:
+        '''Get the model.'''
+        return self._model
+    
+    @model.setter
+    def model(self, model: nn.Module) -> None:
+        '''Set the model and move it to the specified device.'''
+        self._model = model.to(self.device)
 
     def train(
         self, 
@@ -143,3 +160,13 @@ class Epoch:
             labels=total_labels,
             identifiers=total_identifiers
         )
+
+if __name__ == "__main__":
+    import numpy as np
+    epoch_result = EpochResult(
+        loss=0.5,
+        logits=np.array([0.1, 0.2, 0.3]),
+        labels=np.array([0, 1, 0]),
+        identifiers=['id1', 'id2', 'id3']
+    )
+    print(epoch_result.to_dataframe())
