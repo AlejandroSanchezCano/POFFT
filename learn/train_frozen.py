@@ -16,6 +16,7 @@ from model.frozen import Frozen
 from core.early_stop import EarlyStop
 from core.performance import Performance
 from core.inspector import ModelInspector
+from core.sampler import LengthBatchSampler
 from core.dataset import ProteinPairDataset
 from entity.collection import ProteinPairCollection
 from model.classification_head import ClassificationHead
@@ -60,6 +61,13 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     test_size=config.TEST_FRACTION
 )
 
+# Dynamic padding
+collator = DataCollatorWithPadding(
+    tokenizer=esm2.tokenizer,
+    padding=True,
+    return_tensors='pt'
+)
+
 # Collate function
 def collate_fn(batch: list[dict]) -> dict:
     
@@ -68,13 +76,6 @@ def collate_fn(batch: list[dict]) -> dict:
     labels = [item['label'] for item in batch]
     identifiers = [item['identifier'] for item in batch]
     tokenized1, tokenized2 = zip(*tokenized)
-
-    # Dynamic padding
-    collator = DataCollatorWithPadding(
-        tokenizer=esm2.tokenizer,
-        padding=True,
-        return_tensors='pt'
-    )
 
     # Convert to specific format for collator: dictionary with (seq_len) ids and masks
     batch1 = [
@@ -97,39 +98,62 @@ def collate_fn(batch: list[dict]) -> dict:
     collated2 = collator(batch2)
 
     return {
-        'inputs': (collated1, collated2),
+        'inputs': (
+            (collated1['input_ids'], collated1['attention_mask']),
+            (collated2['input_ids'], collated2['attention_mask'])
+        ),
         'labels': torch.stack(labels),
         'identifiers': identifiers
     }
 
+# Build samplers
+train_sampler = LengthBatchSampler(
+    data_source=train_dataset,
+    batch_size=config.BATCH_SIZE,
+    shuffle=True
+)
+val_sampler = LengthBatchSampler(
+    data_source=val_dataset,
+    batch_size=config.BATCH_SIZE,
+    shuffle=False
+)
+test_sampler = LengthBatchSampler(
+    data_source=test_dataset,
+    batch_size=config.BATCH_SIZE,
+    shuffle=False
+)
+logger.info(f'Train sampler: {len(train_sampler)} batches')
+logger.info(f'Validation sampler: {len(val_sampler)} batches')
+logger.info(f'Test sampler: {len(test_sampler)} batches')
+
 # Build dataloaders
 train_loader = DataLoader(
     train_dataset,
+    batch_sampler=train_sampler,
     collate_fn=collate_fn,
-    batch_size=config.BATCH_SIZE,
-    shuffle=True,
     num_workers=config.NUM_WORKERS,
     persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
 val_loader = DataLoader(
     val_dataset,
+    batch_sampler=val_sampler,
     collate_fn=collate_fn,
-    batch_size=config.BATCH_SIZE,
-    shuffle=False,
     num_workers=config.NUM_WORKERS,
     persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
 test_loader = DataLoader(
     test_dataset,
+    batch_sampler=test_sampler,
     collate_fn=collate_fn,
-    batch_size=config.BATCH_SIZE,
-    shuffle=False,
     num_workers=config.NUM_WORKERS,
     persistent_workers=True,
     worker_init_fn=seed.seed_worker
 )
+logger.info(f'Train dataloader: {len(train_loader)} batches')
+logger.info(f'Validation dataloader: {len(val_loader)} batches')
+logger.info(f'Test dataloader: {len(test_loader)} batches')
 
 ###############################################################################
 #######                           MODEL SETUP                           #######
