@@ -41,6 +41,7 @@ class EarlyStop:
         self.patience = patience
         self.min_delta = min_delta
         self.best_loss = float('inf')
+        self.counter = 0
 
     def __call__(
         self,
@@ -62,14 +63,13 @@ class EarlyStop:
         # Check if the loss has improved
         if loss < self.best_loss - self.min_delta:
             self.best_loss = loss
+            self.counter = 0
             return False
-        else:
-            # Decrease patience counter
-            self.patience -= 1
-            # Check if patience has run out
-            if self.patience <= 0:
-                return True
-            return False
+
+        # Increase patience counter
+        self.counter += 1
+        # Check if patience has run out
+        return self.counter >= self.patience
 
 if __name__ == "__main__":
     # Example usage
@@ -79,12 +79,13 @@ if __name__ == "__main__":
     model = nn.Linear(10, 1)
 
     # Early stopping
-    early_stop = EarlyStop(patience=3, min_delta=0.01)
+    early_stop = EarlyStop(patience=4, min_delta=0)
 
     # Simulate training loop
-    losses = [0.5, 0.4, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]
+    #losses = [0.5, 0.4, 0.35, 0.36, 0.37, 0.38, 0.39, 0.4, 0.41]
+    losses = [293, 294, 300, 302, 291, 297, 300, 305, 310, 315, 320]
     for epoch, loss in enumerate(losses):
-        print(f"Epoch {epoch+1}, Loss: {loss}, Patience: {early_stop.patience}")
+        print(f"Epoch {epoch+1}, Loss: {loss}, Patience: {early_stop.counter}")
         if early_stop(loss):
             print("Early stopping triggered.")
             break

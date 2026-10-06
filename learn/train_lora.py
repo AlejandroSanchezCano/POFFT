@@ -12,15 +12,16 @@ from core import seed
 from misc import paths
 from misc import config
 from tool.esm2 import ESM2
+from peft import LoraConfig
 from core.split import Split
 from core.epoch import Epoch
 from misc.logger import logger
 from core.tracker import Tracker
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
-from model.single.frozen import Frozen
 from core.performance import Performance
 from core.inspector import ModelInspector
+from model.single.lora import LoRaFineTune
 from core.sampler import LengthBatchSampler
 from core.dataset import ProteinPairDataset
 from entity.collection import ProteinPairCollection
@@ -179,9 +180,10 @@ head = ClassificationHead(
 )
 
 # Model
-model = Frozen(
+model = LoRaFineTune(
     encoder=esm2.model, 
-    head=head
+    head=head,
+    lora_config=LoraConfig(**config.LORA_CONFIG)
 )
 
 # Inspector
@@ -191,11 +193,28 @@ logger.info(f'Total parameters: {inspector.num_parameters(trainable=False)}')
 logger.info(f'Trainable parameters: {inspector.num_parameters(trainable=True)}')
 
 # Optimizer
-optimizer = torch.optim.AdamW(
-    inspector.parameters(trainable=True),
-    lr=config.HEAD_LEARNING_RATE,
-    weight_decay=config.WEIGHT_DECAY
-)
+encoder_params = [
+    parameter 
+    for parameter in model.encoder.parameters()
+    if parameter.requires_grad
+]
+head_params = [
+    parameter 
+    for parameter in model.head.parameters()
+    if parameter.requires_grad
+]
+optimizer = torch.optim.AdamW([
+    {
+        'params': encoder_params, 
+        'lr': config.LORA_LEARNING_RATE,
+        'weight_decay': config.WEIGHT_DECAY
+    },
+    {
+        'params': head_params, 
+        'lr': config.HEAD_LEARNING_RATE, 
+        'weight_decay': config.WEIGHT_DECAY
+    },
+])
 
 # Early stopping
 early_stop = EarlyStop(

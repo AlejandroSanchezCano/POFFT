@@ -10,13 +10,14 @@ Date:       29/09/2026
 
 # Built-in modules
 import copy
+from pathlib import Path
 
 # Third-party modules
 import numpy as np
 import matplotlib.pyplot as plt
 
 # Custom modules
-from performance import Performance
+from core.performance import Performance
 
 class Tracker:
 
@@ -56,12 +57,12 @@ class Tracker:
         '''
         # Initialize performance object
         train_perf = Performance(
-            true_labels=train.labels,
-            predicted_logits=train.logits
+            true=train.labels,
+            logits=train.logits
         )
         val_perf = Performance(
-            true_labels=validation.labels,
-            predicted_logits=validation.logits
+            true=validation.labels,
+            logits=validation.logits
         )
 
         # Record results
@@ -78,7 +79,7 @@ class Tracker:
 
     def loss_curves(
         self,
-        out_path: str | 'Path'
+        out_path: str | Path
     ) -> None:
         '''
         Plot the loss curves for training and validation.

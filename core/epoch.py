@@ -22,8 +22,8 @@ from torch.utils.data import DataLoader
 @dataclass(frozen=True, slots=True)
 class EpochResult:
     loss: float
-    logits: list | 'np.ndarray'
-    labels: list | 'np.ndarray'
+    logits: 'np.ndarray'
+    labels: 'np.ndarray'
     identifiers: list
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -45,10 +45,10 @@ class Epoch:
         enable_amp: bool = True,
     ):
         # Instance variables
+        self.device = device
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
-        self.device = device
         self.enable_amp = enable_amp
 
         # Automatic Mixed Precision (AMP)
@@ -113,7 +113,8 @@ class Epoch:
         total_identifiers = []
 
         # Iterate over batches
-        for batch in tqdm(dataloader, desc="Batches", unit="batch"):
+        desc = "Training" if training else "Evaluating"
+        for batch in tqdm(dataloader, desc=desc, unit="batch"):
 
             # Unpack batch
             tokens1, tokens2 = batch['inputs']
@@ -123,11 +124,11 @@ class Epoch:
             identifiers = batch['identifiers']
 
             # Move to device
-            ids1 = ids1.to(self.device)
-            mask1 = mask1.to(self.device)
-            ids2 = ids2.to(self.device)
-            mask2 = mask2.to(self.device)
-            labels = labels.to(self.device)
+            ids1 = ids1.to(self.device, non_blocking=True)
+            mask1 = mask1.to(self.device, non_blocking=True)
+            ids2 = ids2.to(self.device, non_blocking=True)
+            mask2 = mask2.to(self.device, non_blocking=True)
+            labels = labels.to(self.device, non_blocking=True)
 
             # Construct model input
             model_input = ((ids1, mask1), (ids2, mask2))
@@ -137,7 +138,10 @@ class Epoch:
                 self.optimizer.zero_grad(set_to_none=True)
             
             # Forward pass with AMP
-            with torch.amp.autocast(device_type=self.device.type, enabled=self.enable_amp):
+            with torch.amp.autocast(
+                device_type=self.device.type, 
+                enabled=self.enable_amp
+            ):
                 logits = self.model(
                     model_input,
                     identifiers
@@ -151,11 +155,16 @@ class Epoch:
                 self.scaler.update()
 
             # Accumulate
-            total_loss += loss.item() * labels.size(0)
-            total_samples += labels.size(0)
-            total_logits.extend(logits.detach().cpu().numpy())
-            total_labels.extend(labels.detach().cpu().numpy())
+            batch_size = labels.size(0)
+            total_loss += loss.detach().item() * batch_size
+            total_samples += batch_size
+            total_logits.extend(logits.detach().cpu())
+            total_labels.extend(labels.detach().cpu())
             total_identifiers.extend(identifiers)
+
+        # Convert to numpy arrays
+        total_logits = torch.cat(total_logits).numpy()
+        total_labels = torch.cat(total_labels).numpy()
 
         return EpochResult(
             loss=total_loss / total_samples,
