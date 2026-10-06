@@ -15,7 +15,7 @@ NEGATIVE_TO_POSITIVE_RATIO = 10
 
 # learn
 SEED = 42
-ESM2_MODEL = '8M'   #CHANGE: '8M' -> '35M'
+ESM2_MODEL = '35M'
 TRAIN_FRACTION = 0.5
 VAL_FRACTION = 0.25
 TEST_FRACTION = 0.25
@@ -31,3 +31,12 @@ EPOCHS = 20
 # models
 CLASSIFICATION_HEAD_HIDDEN_DIMS = [64, 64]
 CLASSIFICATION_HEAD_DROPOUT = 0.3
+LORA_CONFIG = {
+    'task_type': 'FEATURE_EXTRACTION',
+    'r': 8,
+    'lora_alpha': 16,
+    'lora_dropout': 0.1,
+    'bias': 'none',
+    'target_modules': ['query', 'key', 'value'],
+    'layers_to_transform': [4, 5, 6, 7, 8, 9, 10, 11], # last 8 layers
+}

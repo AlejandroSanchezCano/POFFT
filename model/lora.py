@@ -1,37 +1,34 @@
 """
 ===============================================================================
-Title:      Frozen
-Outline:    This module defines the Frozen model, which consists of a frozen
-            encoder (ESM2) and a trainable classification head. The encoder's
-            parameters are frozen to prevent updates during training, while the
-            classification head is trainable.
+Title:      LoRAFineTune
+Outline:    This module defines the LoRAFineTune model, which consists of an
+            encoder (ESM2) and classification head, both trainable, allowing
+            for fine-tuning of the model using LoRA (Low-Rank Adaptation).
 Author:     Alejandro Sánchez Cano
-Date:       24/09/2026
+Date:       05/10/2026
 ===============================================================================
 """
 
 # Third-party modules
+import peft
 import torch
 from torch import nn
 from torchtyping import TensorType
 
-class Frozen(nn.Module):
+class LoRAFineTune(nn.Module):
 
     def __init__(
         self, 
         encoder: nn.Module,
-        head: nn.Module
+        head: nn.Module,
+        lora_config: 'LoraConfig'
     ):
         # Initialize nn.Module
         super().__init__()
 
         # Instance variables
-        self.encoder = encoder
+        self.encoder = peft.get_peft_model(encoder, lora_config)
         self.head = head
-
-        # Freeze the encoder parameters
-        for param in self.encoder.parameters():
-            param.requires_grad = False
 
     def _encode(
         self, 
@@ -56,11 +53,10 @@ class Frozen(nn.Module):
             Encoded representations of the input sequences.
         '''
         # Forward pass through the encoder
-        with torch.no_grad():
-            output = self.encoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
+        output = self.encoder(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
 
         # Obtain embeddings (mean pooling with attention mask)
         hidden = output.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
@@ -109,6 +105,7 @@ if __name__ == "__main__":
     # Test the model
     from misc import config
     from tool.esm2 import ESM2
+    from peft import LoraConfig
     from core.inspector import ModelInspector
     from classification_head import ClassificationHead
 
@@ -118,7 +115,12 @@ if __name__ == "__main__":
         input_dim=esm2.hidden_size * 2,
         hidden_dims=config.CLASSIFICATION_HEAD_HIDDEN_DIMS,
     )
-    model = Frozen(encoder=esm2.model, head=classification_head)
+    model = LoRAFineTune(
+        encoder=esm2.model, 
+        head=classification_head,
+        lora_config=LoraConfig(**config.LORA_CONFIG)
+    )
+    model.encoder.print_trainable_parameters() 
 
     # Inspect the model
     inspector = ModelInspector(model)

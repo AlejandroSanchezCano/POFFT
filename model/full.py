@@ -1,12 +1,11 @@
 """
 ===============================================================================
-Title:      Frozen
-Outline:    This module defines the Frozen model, which consists of a frozen
-            encoder (ESM2) and a trainable classification head. The encoder's
-            parameters are frozen to prevent updates during training, while the
-            classification head is trainable.
+Title:      FullFineTune
+Outline:    This module defines the FullFineTune model, which consists of an
+            encoder (ESM2) and classification head, both trainable, allowing
+            for full fine-tuning of the model.
 Author:     Alejandro Sánchez Cano
-Date:       24/09/2026
+Date:       05/10/2026
 ===============================================================================
 """
 
@@ -15,7 +14,7 @@ import torch
 from torch import nn
 from torchtyping import TensorType
 
-class Frozen(nn.Module):
+class FullFineTune(nn.Module):
 
     def __init__(
         self, 
@@ -28,10 +27,6 @@ class Frozen(nn.Module):
         # Instance variables
         self.encoder = encoder
         self.head = head
-
-        # Freeze the encoder parameters
-        for param in self.encoder.parameters():
-            param.requires_grad = False
 
     def _encode(
         self, 
@@ -56,11 +51,10 @@ class Frozen(nn.Module):
             Encoded representations of the input sequences.
         '''
         # Forward pass through the encoder
-        with torch.no_grad():
-            output = self.encoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
+        output = self.encoder(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+        )
 
         # Obtain embeddings (mean pooling with attention mask)
         hidden = output.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
@@ -118,7 +112,7 @@ if __name__ == "__main__":
         input_dim=esm2.hidden_size * 2,
         hidden_dims=config.CLASSIFICATION_HEAD_HIDDEN_DIMS,
     )
-    model = Frozen(encoder=esm2.model, head=classification_head)
+    model = FullFineTune(encoder=esm2.model, head=classification_head)
 
     # Inspect the model
     inspector = ModelInspector(model)
