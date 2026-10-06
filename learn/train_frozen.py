@@ -14,6 +14,7 @@ from core.epoch import Epoch
 from misc.logger import logger
 from model.frozen import Frozen
 from core.tracker import Tracker
+from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
 from core.performance import Performance
 from core.inspector import ModelInspector
@@ -186,8 +187,10 @@ early_stop = EarlyStop(
 )
 
 # Loss function
-pos_weight = torch.tensor([config.NEGATIVE_TO_POSITIVE_RATIO], device='cuda')
-loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+loss_fn = BinaryFocalLoss(
+    alpha=config.FOCAL_LOSS_ALPHA,
+    gamma=config.FOCAL_LOSS_GAMMA,
+)
 
 # Epoch
 epoch = Epoch(        
