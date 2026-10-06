@@ -42,3 +42,5 @@ LORA_CONFIG = {
     'target_modules': ['query', 'key', 'value'],
     'layers_to_transform': [4, 5, 6, 7, 8, 9, 10, 11], # last 8 layers
 }
+BOTTLENECK_DIM = 512
+BOTTLENECK_DROPOUT = 0.3

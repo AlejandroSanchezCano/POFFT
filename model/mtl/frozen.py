@@ -1,32 +1,28 @@
-"""
-===============================================================================
-Title:      FullFineTune
-Outline:    This module defines the FullFineTune model, which consists of an
-            encoder (ESM2) and classification head, both trainable, allowing
-            for full fine-tuning of the model.
-Author:     Alejandro Sánchez Cano
-Date:       05/10/2026
-===============================================================================
-"""
 
 # Third-party modules
 import torch
 from torch import nn
 from torchtyping import TensorType
 
-class FullFineTune(nn.Module):
+class MultiTaskFrozen(nn.Module):
 
     def __init__(
         self, 
         encoder: nn.Module,
-        head: nn.Module
+        bottleneck: nn.Module,
+        heads: list[nn.Module],
     ):
         # Initialize nn.Module
         super().__init__()
 
         # Instance variables
         self.encoder = encoder
-        self.head = head
+        self.bottleneck = bottleneck
+        self.heads = heads
+
+        # Freeze the encoder parameters
+        for param in self.encoder.parameters():
+            param.requires_grad = False
 
     def _encode(
         self, 
@@ -51,10 +47,11 @@ class FullFineTune(nn.Module):
             Encoded representations of the input sequences.
         '''
         # Forward pass through the encoder
-        output = self.encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-        )
+        with torch.no_grad():
+            output = self.encoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
 
         # Obtain embeddings (mean pooling with attention mask)
         hidden = output.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
@@ -68,7 +65,10 @@ class FullFineTune(nn.Module):
         x: tuple[
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
-        ]
+        ],
+        identifiers: list[tuple[str, str]],
+        *args,
+        **kwargs
     ) -> TensorType["batch"]:
         '''
         Forward step
@@ -78,6 +78,9 @@ class FullFineTune(nn.Module):
         x : tuple
             Tuple containing two tuples, each with (input_ids, attention_mask)
             for the two protein sequences.
+        identifiers : list[tuple[str, str]]
+            List of tuples containing the identifiers for the two protein 
+            sequences in each pair.
 
         Returns
         -------
@@ -94,27 +97,13 @@ class FullFineTune(nn.Module):
         # Concatenate the pooled embeddings
         pooled = torch.cat([pooled1, pooled2], dim=-1) # (batch, hidden_size*2)
 
+        # Apply the bottleneck
+        bottlenecked = self.bottleneck(pooled) # (batch, bottleneck_dim)
+
+        #TODO: add a mechanism to select the appropriate head based on the identifiers or some other criteria. For now, we will assume a single head for simplicity.
+
+
         # Forward pass through the classification head
-        logits = self.head(pooled) # (batch)
+        logits = self.head(bottlenecked) # (batch)
 
         return logits
-
-if __name__ == "__main__":
-    # Test the model
-    from misc import config
-    from tool.esm2 import ESM2
-    from core.inspector import ModelInspector
-    from classification_head import ClassificationHead
-
-    # Initialize model components
-    esm2 = ESM2(config.ESM2_MODEL)
-    classification_head = ClassificationHead(
-        input_dim=esm2.hidden_size * 2,
-        hidden_dims=config.CLASSIFICATION_HEAD_HIDDEN_DIMS,
-    )
-    model = FullFineTune(encoder=esm2.model, head=classification_head)
-
-    # Inspect the model
-    inspector = ModelInspector(model)
-    print(f'Total parameters: {inspector.num_parameters(trainable=False)}')
-    print(f'Trainable parameters: {inspector.num_parameters(trainable=True)}')

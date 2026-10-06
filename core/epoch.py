@@ -138,7 +138,10 @@ class Epoch:
             
             # Forward pass with AMP
             with torch.amp.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                logits = self.model(model_input)
+                logits = self.model(
+                    model_input,
+                    identifiers
+                )
                 loss = self.loss_fn(logits, labels)
 
             # Backward pass and optimization

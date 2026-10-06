@@ -74,7 +74,9 @@ class Frozen(nn.Module):
         x: tuple[
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
-        ]
+        ],
+        *args,
+        **kwargs
     ) -> TensorType["batch"]:
         '''
         Forward step
