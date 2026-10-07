@@ -11,14 +11,14 @@ bottleneck = Bottleneck(
 )
 
 # Classification heads
-heads = nn.ModuleList([
-    ClassificationHead(
+heads = nn.ModuleDict({
+    family: ClassificationHead(
         input_dim=config.BOTTLENECK_DIM,
         hidden_dims=config.CLASSIFICATION_HEAD_HIDDEN_DIMS,
         dropout=config.CLASSIFICATION_HEAD_DROPOUT,
     )
-    for _ in range(len(config.FAMILIES))
-])
+    for family in config.FAMILIES
+})
 
 # Model
 model = MultiTaskFrozen(
