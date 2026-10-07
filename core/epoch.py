@@ -158,8 +158,8 @@ class Epoch:
             batch_size = labels.size(0)
             total_loss += loss.detach().item() * batch_size
             total_samples += batch_size
-            total_logits.extend(logits.detach().cpu())
-            total_labels.extend(labels.detach().cpu())
+            total_logits.append(logits.detach().cpu())
+            total_labels.append(labels.detach().cpu())
             total_identifiers.extend(identifiers)
 
         # Convert to numpy arrays
