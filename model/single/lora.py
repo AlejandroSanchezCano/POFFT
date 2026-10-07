@@ -15,6 +15,9 @@ import torch
 from torch import nn
 from torchtyping import TensorType
 
+# Custom modules
+from model import utils
+
 class LoRAFineTune(nn.Module):
 
     def __init__(
@@ -30,49 +33,12 @@ class LoRAFineTune(nn.Module):
         self.encoder = peft.get_peft_model(encoder, lora_config)
         self.head = head
 
-    def _encode(
-        self, 
-        input_ids: TensorType["batch", "seq_len"],
-        attention_mask: TensorType["batch", "seq_len"]
-    ) -> TensorType["batch", "hidden_size"]:
-        '''
-        Combine encoder and mean pooling to encode the input sequences into
-        fixed-size embeddings.
-
-        Parameters
-        ----------
-        input_ids : TensorType["batch", "seq_len"]
-            Input token IDs for the sequences.
-        
-        attention_mask : TensorType["batch", "seq_len"]
-            Attention mask for the sequences.
-
-        Returns
-        -------
-        TensorType["batch", "hidden_size"]
-            Encoded representations of the input sequences.
-        '''
-        # Forward pass through the encoder
-        output = self.encoder(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-        )
-
-        # Obtain embeddings (mean pooling with attention mask)
-        hidden = output.last_hidden_state[:, 1:-1, :] # (batch, seq_len, hidden_size)
-        mask = attention_mask[:, 1:-1].unsqueeze(-1) # (batch, seq_len, 1)
-        pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1) # (batch, hidden_size)
-
-        return pooled
-
     def forward(
         self, 
         x: tuple[
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
-        ],
-        *args,
-        **kwargs
+        ]
     ) -> TensorType["batch"]:
         '''
         Forward step
@@ -86,14 +52,18 @@ class LoRAFineTune(nn.Module):
         Returns
         -------
         TensorType["batch"]
-            Logits for the classification task.
+            Logits.
         '''
         # Unpack inputs
         (ids1, mask1), (ids2, mask2) = x
 
-        # Encode the input sequences
-        pooled1 = self._encode(ids1, mask1)
-        pooled2 = self._encode(ids2, mask2)
+        # Encode 
+        encoded1 = utils.encode(encoder=self.encoder, inputs=(ids1, mask1)) # (batch, seq_len + 2, hidden_size)
+        encoded2 = utils.encode(encoder=self.encoder, inputs=(ids2, mask2)) # (batch, seq_len + 2, hidden_size)
+
+        # Pool representations
+        pooled1 = utils.mean_pool(encoded1, mask1) # (batch, hidden_size)
+        pooled2 = utils.mean_pool(encoded2, mask2) # (batch, hidden_size)
 
         # Concatenate the pooled embeddings
         pooled = torch.cat([pooled1, pooled2], dim=-1) # (batch, hidden_size*2)
@@ -109,7 +79,7 @@ if __name__ == "__main__":
     from tool.esm2 import ESM2
     from peft import LoraConfig
     from core.inspector import ModelInspector
-    from classification_head import ClassificationHead
+    from model.classification_head import ClassificationHead
 
     # Initialize model components
     esm2 = ESM2(config.ESM2_MODEL)
@@ -128,3 +98,10 @@ if __name__ == "__main__":
     inspector = ModelInspector(model)
     print(f'Total parameters: {inspector.num_parameters(trainable=False)}')
     print(f'Trainable parameters: {inspector.num_parameters(trainable=True)}')
+
+    # Test the model
+    x = (
+        (torch.randint(0, 20, (2, 10)), torch.ones((2, 10))), # (input_ids1, attention_mask1)
+        (torch.randint(0, 20, (2, 15)), torch.ones((2, 15)))  # (input_ids2, attention_mask2)
+    )
+    logits = model(x)
