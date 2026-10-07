@@ -57,14 +57,11 @@ collection.pairs = [
     if pair.p1.family in family or pair.p2.family in family
 ]
 
-# Initialize ESM2
-esm2 = ESM2(config.ESM2_MODEL)
-
-# Tokenize sequences
-tokenized = {
-    protein.uniprot: esm2.tokenize(protein.seq)
-    for protein in tqdm(collection.proteins, desc="Tokenizing proteins")
-}
+# Load tokenized sequences
+tokenized = torch.load(
+    paths.COLLECTIONS / 'families.tokenized',
+    weights_only=False
+)
 
 # Create dataset
 dataset = ProteinPairDataset(
@@ -184,6 +181,9 @@ seed.set_seed(TASK)
 ###############################################################################
 #######                           MODEL SETUP                           #######
 ###############################################################################
+
+# ESM2
+esm2 = ESM2(config.ESM2_MODEL)
 
 # Classification head
 head = ClassificationHead(

@@ -10,4 +10,4 @@ python cluster/form_families.py
 sh job.sh -u rome -t 00:30:00 -f cluster/build_collections.py
 
 # Train models
-sh job.sh -t 00:30:00 -f learn/train_frozen.py -e
+python learn/pretokenize.py

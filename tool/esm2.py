@@ -81,12 +81,6 @@ class ESM2:
             clean_up_tokenization_spaces=False # avoids warning
         )
 
-        # Disables dropout for deterministic results
-        model.eval()
-
-        # GPU/CPU
-        model = model.cuda()
-
         return model, tokenizer
 
     def _validate(self, seq: str) -> None:
@@ -162,7 +156,11 @@ class ESM2:
         '''
         Runs the ESM2 model.
         '''
+        # Disables dropout for deterministic results
+        model.eval()
+        
         # GPU/CPU
+        model = model.cuda()
         input_ids = self.tokenizer_output[0].cuda()
         attention_mask = self.tokenizer_output[1].cuda()
 
