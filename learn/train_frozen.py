@@ -1,3 +1,5 @@
+
+
 # Built-in modules
 import os
 
@@ -31,7 +33,7 @@ logger.info('Importing modules completed')
 seed.set_seed(config.SEED)
 
 # Job array
-TASK = int(os.getenv('SLURM_ARRAY_TASK_ID'))
+TASK = 0#int(os.getenv('SLURM_ARRAY_TASK_ID'))
 logger.info(f'Running task: {TASK}')
 
 ###############################################################################
@@ -166,6 +168,9 @@ test_loader = DataLoader(
 logger.info(f'Train dataloader: {len(train_loader)} batches')
 logger.info(f'Validation dataloader: {len(val_loader)} batches')
 logger.info(f'Test dataloader: {len(test_loader)} batches')
+
+# Reseed
+seed.set_seed(TASK)
 
 ###############################################################################
 #######                           MODEL SETUP                           #######
