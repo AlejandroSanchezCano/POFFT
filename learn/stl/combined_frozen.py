@@ -182,7 +182,7 @@ logger.info(f'Validation dataloader: {len(val_loader)} batches')
 logger.info(f'Test dataloader: {len(test_loader)} batches')
 
 # Reseed
-seed.set_seed(TASK)
+seed.set_seed(REPLICATE)
 
 ###############################################################################
 #######                           MODEL SETUP                           #######
