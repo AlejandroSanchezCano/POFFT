@@ -34,7 +34,6 @@ from core.tracker import Tracker
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
 from model.stl.lora import LoRaFineTune
-from core.performance import Performance
 from core.inspector import ModelInspector
 from core.sampler import LengthBatchSampler
 from core.dataset import ProteinPairDataset

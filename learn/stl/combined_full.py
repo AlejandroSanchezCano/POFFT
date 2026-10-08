@@ -32,7 +32,6 @@ from misc.logger import logger
 from core.tracker import Tracker
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
-from core.performance import Performance
 from core.inspector import ModelInspector
 from model.single.full import FullFineTune
 from core.sampler import LengthBatchSampler

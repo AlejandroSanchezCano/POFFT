@@ -33,7 +33,6 @@ from core.tracker import Tracker
 from model.stl.frozen import Frozen
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
-from core.performance import Performance
 from core.inspector import ModelInspector
 from core.sampler import LengthBatchSampler
 from core.dataset import ProteinPairDataset
