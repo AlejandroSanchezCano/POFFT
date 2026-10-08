@@ -45,8 +45,8 @@ logger.info('Importing modules completed')
 seed.set_seed(config.SEED)
 
 # Job array
-TASK = int(os.getenv('SLURM_ARRAY_TASK_ID'))
-logger.info(f'Running task: {TASK}')
+REPLICATE = int(os.getenv('SLURM_ARRAY_TASK_ID'))
+logger.info(f'Running replicate: {REPLICATE}')
 
 ###############################################################################
 #######                              LOAD                               #######
