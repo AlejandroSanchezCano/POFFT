@@ -40,7 +40,7 @@ def mean_pool(
         Pooled representations of the input sequences.
     '''
     encoded = encoded[:, 1:-1, :] # (batch, seq_len, hidden_size)
-    mask = attention_mask.unsqueeze(-1) # (batch, seq_len, 1)
+    mask = attention_mask[:, 1:-1].unsqueeze(-1) # (batch, seq_len, 1)
     pooled = (encoded * mask).sum(dim=1) / mask.sum(dim=1) # (batch, hidden_size)
 
     return pooled

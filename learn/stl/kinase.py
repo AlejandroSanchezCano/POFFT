@@ -1,4 +1,17 @@
-
+"""
+===============================================================================
+Title:      Train
+Outline:    Trains a deep learning model with the following characteristics:
+            - Framework: single-task learning (STL)
+            - Dataset: protein pairs from the family PK_Tyr_Ser-Thr, Pkinase 
+                (kinases)
+            - Model: ESM2 frozen encoder + classification head
+            - Loss: binary focal loss
+Author:     Alejandro Sánchez Cano
+Date:       08/10/2026
+Time:       
+===============================================================================
+"""
 
 # Built-in modules
 import os
@@ -18,9 +31,9 @@ from core.split import Split
 from core.epoch import Epoch
 from misc.logger import logger
 from core.tracker import Tracker
+from model.stl.frozen import Frozen
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
-from model.single.frozen import Frozen
 from core.performance import Performance
 from core.inspector import ModelInspector
 from core.sampler import LengthBatchSampler
@@ -29,12 +42,15 @@ from entity.collection import ProteinPairCollection
 from model.classification_head import ClassificationHead
 logger.info('Importing modules completed')
 
+# Choose family
+FAMILY_IDX = 0 # PK_Tyr_Ser-Thr, Pkinase = kinases
+
 # Set seed
 seed.set_seed(config.SEED)
 
 # Job array
-TASK = int(os.getenv('SLURM_ARRAY_TASK_ID'))
-logger.info(f'Running task: {TASK}')
+REPLICATE = int(os.getenv('SLURM_ARRAY_TASK_ID'))
+logger.info(f'Running replicate: {REPLICATE}')
 
 ###############################################################################
 #######                              LOAD                               #######
@@ -47,6 +63,15 @@ collection = ProteinPairCollection(
     file_path=file_path,
     proteins=protein_path,
 )
+
+# Select proteins
+family = config.FAMILIES[FAMILY_IDX]
+collection.pairs = [
+    pair
+    for pair in collection.pairs
+    if pair.p1.family in family or pair.p2.family in family
+]
+logger.info(f'Family: {family}')
 
 # Load tokenized sequences
 tokenized = torch.load(
@@ -68,6 +93,9 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     val_size=config.VAL_FRACTION,
     test_size=config.TEST_FRACTION
 )
+
+# ESM2
+esm2 = ESM2(config.ESM2_MODEL)
 
 # Dynamic padding
 collator = DataCollatorWithPadding(
@@ -167,14 +195,11 @@ logger.info(f'Validation dataloader: {len(val_loader)} batches')
 logger.info(f'Test dataloader: {len(test_loader)} batches')
 
 # Reseed
-seed.set_seed(TASK)
+seed.set_seed(REPLICATE)
 
 ###############################################################################
 #######                           MODEL SETUP                           #######
 ###############################################################################
-
-# ESM2
-esm2 = ESM2(config.ESM2_MODEL)
 
 # Classification head
 head = ClassificationHead(
@@ -261,9 +286,16 @@ logger.info(
     f"validation loss: {tracker.best_loss:.4f}"
 )
 
-# Save model
-out_dir = paths.MODELS / model.__class__.__name__.lower() / str(TASK)
+# Construct output directory
+main_dir = paths.MODELS
+framework = 'stl'
+task_name = config.FAMILIES[FAMILY_IDX].replace(', ', '_')
+model_name = model.__class__.__name__.lower()
+replicate = str(REPLICATE)
+out_dir = main_dir / framework / task_name / model_name / replicate
 out_dir.mkdir(parents=True, exist_ok=True)
+
+# Save model
 torch.save(tracker.best_model, out_dir / 'model.pt')
 
 # Plot loss curves

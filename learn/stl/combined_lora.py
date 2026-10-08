@@ -1,3 +1,17 @@
+"""
+===============================================================================
+Title:      Train
+Outline:    Trains a deep learning model with the following characteristics:
+            - Framework: single-task learning (STL)
+            - Dataset: protein pairs from all four families
+            - Model: ESM2 LoRA encoder + classification head
+            - Loss: binary focal loss
+Author:     Alejandro Sánchez Cano
+Date:       08/10/2026
+Time:       
+===============================================================================
+"""
+
 # Built-in modules
 import os
 
@@ -19,9 +33,9 @@ from misc.logger import logger
 from core.tracker import Tracker
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
+from model.stl.lora import LoRaFineTune
 from core.performance import Performance
 from core.inspector import ModelInspector
-from model.single.lora import LoRaFineTune
 from core.sampler import LengthBatchSampler
 from core.dataset import ProteinPairDataset
 from entity.collection import ProteinPairCollection
@@ -67,6 +81,9 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     val_size=config.VAL_FRACTION,
     test_size=config.TEST_FRACTION
 )
+
+# ESM2
+esm2 = ESM2(config.ESM2_MODEL)
 
 # Dynamic padding
 collator = DataCollatorWithPadding(
@@ -172,9 +189,6 @@ seed.set_seed(TASK)
 #######                           MODEL SETUP                           #######
 ###############################################################################
 
-# ESM2
-esm2 = ESM2(config.ESM2_MODEL)
-
 # Classification head
 head = ClassificationHead(
     input_dim=esm2.hidden_size * 2,  # Concatenated representations
@@ -278,9 +292,16 @@ logger.info(
     f"validation loss: {tracker.best_loss:.4f}"
 )
 
-# Save model
-out_dir = paths.MODELS / model.__class__.__name__.lower() / str(TASK)
+# Construct output directory
+main_dir = paths.MODELS
+framework = 'stl'
+task_name = 'combined'
+model_name = model.__class__.__name__.lower()
+replicate = str(REPLICATE)
+out_dir = main_dir / framework / task_name / model_name / replicate
 out_dir.mkdir(parents=True, exist_ok=True)
+
+# Save model
 torch.save(tracker.best_model, out_dir / 'model.pt')
 
 # Plot loss curves
