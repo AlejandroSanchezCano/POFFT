@@ -288,9 +288,14 @@ torch.save(tracker.best_model, out_dir / 'model.pt')
 # Plot loss curves
 tracker.loss_curves(out_dir / 'loss_curves.png')
 
+# Save validation results (for threshold selection)
+val = tracker.history['val'][tracker.best_epoch]
+df = val.to_dataframe()
+df.to_csv(out_dir / 'validation_results.csv', index=False)
+
 # Evaluate on test set with best model
 model.load_state_dict(tracker.best_model)
 epoch.model = model
 test = epoch.evaluate(test_loader)
 df = test.to_dataframe()
-df.to_csv(out_dir / 'results.csv', index=False)
+df.to_csv(out_dir / 'test_results.csv', index=False)

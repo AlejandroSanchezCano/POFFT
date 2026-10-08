@@ -1,10 +1,11 @@
 """
 ===============================================================================
-Title:      Tracker
-Outline:    Tracker class for monitoring and visualizing the training process 
-            of deep learning models.
+Title:      Epoch
+Outline:    Epoch class to handle training and evaluation of a deep learning
+            model for one epoch. It supports Automatic Mixed Precision (AMP)
+            for faster training and reduced memory usage. 
 Author:     Alejandro Sánchez Cano
-Date:       05/10/2026
+Date:       08/10/2026
 ===============================================================================
 """
 
@@ -13,11 +14,15 @@ from dataclasses import dataclass
 
 # Third-party modules
 import torch
+import numpy as np
 import pandas as pd
 import torch.nn as nn
 from tqdm import tqdm
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
+# Custom modules
+from core.performance import Performance
 
 @dataclass(frozen=True, slots=True)
 class EpochResult:
@@ -33,6 +38,34 @@ class EpochResult:
             'labels': self.labels,
             'identifiers': self.identifiers
         })
+
+    @property
+    def optimal_threshold(self) -> float:
+        '''
+        Compute the optimal threshold for binary classification based on the 
+        MCC score.
+        
+        Returns
+        -------
+        float
+            Optimal threshold value.
+        '''
+        # Initialize best values
+        best_mcc = -1
+        best_threshold = None
+
+        # Iterate over thresholds to find the one that maximizes MCC
+        for threshold in np.linspace(0.01, 1, 100):
+            performance = Performance(
+                true=self.labels,
+                logits=self.logits,
+                threshold=threshold
+            )
+            if performance.mcc > best_mcc:
+                best_mcc = performance.mcc
+                best_threshold = threshold
+
+        return best_threshold
 
 class Epoch:
 
@@ -179,3 +212,4 @@ if __name__ == "__main__":
         identifiers=['id1', 'id2', 'id3']
     )
     print(epoch_result.to_dataframe())
+    print("Optimal threshold:", epoch_result.optimal_threshold)
