@@ -97,6 +97,12 @@ class Tracker:
         fig = plt.figure(figsize=(10, 5))
         plt.plot(train_losses, label='Train Loss')
         plt.plot(val_losses, label='Validation Loss')
+        plt.axvline(
+            self.best_epoch,
+            color='black',
+            linestyle='--',
+            label='Best Epoch'
+        )
         plt.title('Loss Curves')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
@@ -149,4 +155,4 @@ if __name__ == '__main__':
     print(f"Best epoch based on validation loss: {tracker.best_epoch + 1}")
 
     # Plot loss curves
-    tracker.loss_curves()
+    tracker.loss_curves('.')
