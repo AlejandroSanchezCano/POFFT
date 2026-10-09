@@ -4,13 +4,13 @@ import torch
 from torch import nn
 from torchtyping import TensorType
 
-class MultiTaskFrozen(nn.Module):
+class Frozen(nn.Module):
 
     def __init__(
         self, 
         encoder: nn.Module,
         bottleneck: nn.Module,
-        heads: list[nn.Module],
+        heads: nn.ModuleList,
     ):
         # Initialize nn.Module
         super().__init__()
@@ -30,7 +30,7 @@ class MultiTaskFrozen(nn.Module):
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
         ],
-        task: str
+        task_idx: int
     ) -> TensorType["batch"]:
         '''
         Forward step
@@ -40,7 +40,7 @@ class MultiTaskFrozen(nn.Module):
         x : tuple
             Tuple containing two tuples, each with (input_ids, attention_mask)
             for the two protein sequences.
-        task : str
+        task_idx : int
             Determines which classification head to use for the forward pass.
 
         Returns
@@ -66,6 +66,6 @@ class MultiTaskFrozen(nn.Module):
         bottlenecked = self.bottleneck(pooled) # (batch, bottleneck_dim)
 
         # Forward pass through the classification head
-        logits = self.heads[task](bottlenecked) # (batch)
+        logits = self.heads[task_idx](bottlenecked) # (batch)
 
         return logits
