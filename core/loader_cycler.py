@@ -14,13 +14,13 @@ class LoaderCycler:
     def __init__(self, loaders: list):
         self.loaders = loaders
 
-        # Validate that all DataLoaders have drop_last=True
-        for loader in self.loaders:
-            if not loader.drop_last:
-                raise ValueError(
-                    "All DataLoaders must have drop_last=True to ensure "
-                    "consistent batch sizes across tasks."
-                )
+        # Validate that all DataLoaders have equivalent sizes
+        batch_sizes = [loader.batch_sampler.batch_size for loader in loaders]
+        drop_lasts = [loader.batch_sampler.drop_last for loader in loaders]
+        if len(set(batch_sizes)) != 1:
+            raise ValueError("All DataLoaders must have the same batch_size.")
+        if any(not drop_last for drop_last in drop_lasts):
+            raise ValueError("All DataLoaders must have drop_last=True.")
 
     def __len__(self):
         '''Return the length of the longest DataLoader.'''
