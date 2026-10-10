@@ -22,6 +22,7 @@ class LengthBatchSampler(Sampler):
         data_source: Dataset,
         batch_size: int,
         shuffle: bool = True,
+        drop_last: bool = False
     ):
         self.data_source = data_source
         self.sorted_indices = sorted(
@@ -30,6 +31,7 @@ class LengthBatchSampler(Sampler):
         )
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.drop_last = drop_last
 
     def _get_length(self, idx: int) -> int:
         '''
@@ -60,6 +62,8 @@ class LengthBatchSampler(Sampler):
         int
             The number of batches in the dataset.
         '''
+        if self.drop_last:
+            return len(self.data_source) // self.batch_size
         return (len(self.data_source) + self.batch_size - 1) // self.batch_size
 
     def __iter__(self):
@@ -80,6 +84,10 @@ class LengthBatchSampler(Sampler):
             self.sorted_indices[i:i + self.batch_size]
             for i in range(0, len(self.sorted_indices), self.batch_size)
         ]
+
+        # Drop last batch if necessary
+        if self.drop_last and len(batches[-1]) < self.batch_size:
+            batches.pop()
 
         # Shuffle
         # TODO: control randomness with random.Random()
@@ -113,7 +121,12 @@ if __name__ == "__main__":
         p3.uniprot: (torch.tensor([[10, 11]]), torch.tensor([[1, 1]])),
     }
     dataset = ProteinPairDataset(pairs, tokenized=tokenized)
-    sampler = LengthBatchSampler(dataset, batch_size=2, shuffle=True)
+    sampler = LengthBatchSampler(
+        data_source=dataset, 
+        batch_size=3, 
+        shuffle=True, 
+        drop_last=True
+    )
     print(f'Sorted indices: {sampler.sorted_indices}')
     for batch_indices in sampler:
         print(f"Batch indices: {batch_indices}")
