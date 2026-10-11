@@ -1,7 +1,7 @@
 """
 ===============================================================================
-Title:      MultipleTask
-Outline:    This module defines the MultipleTask model, which consists of an
+Title:      MultiTask
+Outline:    This module defines the MultiTask model, which consists of an
             encoder and multiple classification heads. The encoder can be frozen, 
             fine-tuned with LoRA, or fully trainable based on the specified 
             tuning strategy. The classification heads are always trainable. In
@@ -25,7 +25,7 @@ from torchtyping import TensorType
 # Custom modules
 from model import utils
 
-class MultipleTask(nn.Module):
+class MultiTask(nn.Module):
 
     def __init__(
         self, 
