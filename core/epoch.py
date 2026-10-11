@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader
 
 # Custom modules
 from misc import config
+from core.batch import Batch
 from core.loader_cycler import LoaderCycler
 from core.task_weight import WeightingStrategy
 from core.epoch_result import EpochResult, EpochResultSTL, EpochResultMTL
@@ -129,22 +130,10 @@ class EpochSTL:
         desc = "Training" if training else "Evaluating"
         for batch in tqdm(dataloader, desc=desc, unit="batch"):
 
-            # Unpack batch
-            tokens1, tokens2 = batch['inputs']
-            ids1, mask1 = tokens1
-            ids2, mask2 = tokens2
-            labels = batch['labels']
-            identifiers = batch['identifiers']
-
-            # Move to device
-            ids1 = ids1.to(self.device, non_blocking=True)
-            mask1 = mask1.to(self.device, non_blocking=True)
-            ids2 = ids2.to(self.device, non_blocking=True)
-            mask2 = mask2.to(self.device, non_blocking=True)
-            labels = labels.to(self.device, non_blocking=True)
-
-            # Construct model input
-            model_input = ((ids1, mask1), (ids2, mask2))
+            # Batch shenanigans
+            batch = Batch(batch)
+            batch.to(self.device)
+            model_input = batch.model_input
 
             # Zero gradients
             if training:
@@ -156,7 +145,7 @@ class EpochSTL:
                 enabled=self.enable_amp
             ):
                 logits = self.model(model_input)
-                loss = self.loss_fn(logits, labels)
+                loss = self.loss_fn(logits, batch.labels)
 
             # Backward pass and optimization
             if training:
@@ -165,12 +154,12 @@ class EpochSTL:
                 self.scaler.update()
 
             # Accumulate
-            batch_size = labels.size(0)
+            batch_size = len(batch)
             total_loss += loss.detach().item() * batch_size
             total_samples += batch_size
             total_logits.append(logits.detach().cpu())
-            total_labels.append(labels.detach().cpu())
-            total_identifiers.extend(identifiers)
+            total_labels.append(batch.labels.detach().cpu())
+            total_identifiers.extend(batch.identifiers)
 
         # Convert to numpy arrays
         total_logits = torch.cat(total_logits).numpy()
@@ -253,22 +242,10 @@ class EpochMTL(Epoch):
             # Iterate over tasks
             for task_idx, batch in enumerate(batches):
 
-                # Unpack batch
-                tokens1, tokens2 = batch['inputs']
-                ids1, mask1 = tokens1
-                ids2, mask2 = tokens2
-                labels = batch['labels']
-                identifiers = batch['identifiers']
-
-                # Move to device
-                ids1 = ids1.to(self.device, non_blocking=True)
-                mask1 = mask1.to(self.device, non_blocking=True)
-                ids2 = ids2.to(self.device, non_blocking=True)
-                mask2 = mask2.to(self.device, non_blocking=True)
-                task_labels = labels.to(self.device, non_blocking=True)
-
-                # Construct model input
-                model_input = ((ids1, mask1), (ids2, mask2))
+                # Batch shenanigans
+                batch = Batch(batch)
+                batch.to(self.device)
+                model_input = batch.model_input
                 
                 # Forward pass with AMP
                 with torch.amp.autocast(
@@ -276,19 +253,19 @@ class EpochMTL(Epoch):
                     enabled=self.enable_amp
                 ):
                     task_logits = self.model(model_input, task_idx=task_idx)
-                    task_loss = self.loss_fn(task_logits, task_labels)    
+                    task_loss = self.loss_fn(task_logits, batch.labels)    
                 
                 # Weight task loss
                 weighted_loss = self.weighting.weights[task_idx] * task_loss
                 weighted_losses.append(weighted_loss)
 
                 # Accumulate
-                task_samples = task_labels.size(0)
+                task_samples = len(batch)
                 samples_per_task[task_idx] += task_samples
                 losses_per_task[task_idx] += task_loss.item() * task_samples
                 logits_per_task[task_idx].append(task_logits.detach().cpu())
-                labels_per_task[task_idx].append(task_labels.detach().cpu())
-                identifiers_per_task[task_idx].extend(identifiers)
+                labels_per_task[task_idx].append(batch.labels.detach().cpu())
+                identifiers_per_task[task_idx].extend(batch.identifiers)
 
             # Sum weighted losses
             loss = torch.stack(weighted_losses).sum()
@@ -299,7 +276,7 @@ class EpochMTL(Epoch):
             self.scaler.update()
 
             # Accumulate total loss
-            samples = task_labels.size(0) * num_tasks
+            samples = len(batch) * num_tasks
             total_loss += loss.detach().item() * samples
 
         # Convert to numpy arrays
@@ -367,22 +344,10 @@ class EpochMTL(Epoch):
         desc = f"Evaluating Task {task_idx}"
         for batch in tqdm(dataloader, desc=desc, unit="batch"):
 
-            # Unpack batch
-            tokens1, tokens2 = batch['inputs']
-            ids1, mask1 = tokens1
-            ids2, mask2 = tokens2
-            labels = batch['labels']
-            identifiers = batch['identifiers']
-
-            # Move to device
-            ids1 = ids1.to(self.device, non_blocking=True)
-            mask1 = mask1.to(self.device, non_blocking=True)
-            ids2 = ids2.to(self.device, non_blocking=True)
-            mask2 = mask2.to(self.device, non_blocking=True)
-            labels = labels.to(self.device, non_blocking=True)
-
-            # Construct model input
-            model_input = ((ids1, mask1), (ids2, mask2))
+            # Batch shenanigans
+            batch = Batch(batch)
+            batch.to(self.device)
+            model_input = batch.model_input
             
             # Forward pass with AMP
             with torch.amp.autocast(
@@ -390,15 +355,15 @@ class EpochMTL(Epoch):
                 enabled=self.enable_amp
             ):
                 logits = self.model(model_input, task_idx=task_idx)
-                loss = self.loss_fn(logits, labels)
+                loss = self.loss_fn(logits, batch.labels)
 
             # Accumulate
-            batch_size = labels.size(0)
+            batch_size = len(batch)
             total_loss += loss.detach().item() * batch_size
             total_samples += batch_size
             total_logits.append(logits.detach().cpu())
-            total_labels.append(labels.detach().cpu())
-            total_identifiers.extend(identifiers)
+            total_labels.append(batch.labels.detach().cpu())
+            total_identifiers.extend(batch.identifiers)
 
         # Convert to numpy arrays
         total_logits = torch.cat(total_logits).numpy()
