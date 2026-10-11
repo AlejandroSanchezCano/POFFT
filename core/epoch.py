@@ -25,7 +25,7 @@ from misc import config
 from core.batch import Batch
 from core.loader_cycler import LoaderCycler
 from core.task_weight import WeightingStrategy
-from core.epoch_result import EpochResult, EpochResultSTL, EpochResultMTL
+from core.result import Result, ResultSTL, ResultMTL
 
 ###############################################################################
 #######                      ABSTRACT BASE CLASS                        #######
@@ -44,13 +44,13 @@ class Epoch(ABC):
         self._model = model.to(self.device)
 
     @abstractmethod
-    def train(self, *args, **kwargs) -> EpochResult:
+    def train(self, *args, **kwargs) -> Result:
         '''Train the model for one epoch.'''
         pass
 
     @torch.inference_mode()
     @abstractmethod
-    def evaluate(self, *args, **kwargs) -> EpochResult:
+    def evaluate(self, *args, **kwargs) -> Result:
         '''Evaluate the model for one epoch.'''
         pass
 
@@ -84,7 +84,7 @@ class EpochSTL:
     def train(
         self, 
         dataloader: DataLoader,
-    ) -> EpochResultSTL:
+    ) -> ResultSTL:
         '''Train the model for one epoch.'''
         return self._run(dataloader, training=True)
 
@@ -92,7 +92,7 @@ class EpochSTL:
     def evaluate(
         self,
         dataloader: DataLoader,
-    ) -> EpochResultSTL:
+    ) -> ResultSTL:
         '''Evaluate the model for one epoch.'''
         return self._run(dataloader, training=False)
 
@@ -100,7 +100,7 @@ class EpochSTL:
         self, 
         dataloader: DataLoader,
         training: bool,
-    ) -> EpochResultSTL:
+    ) -> ResultSTL:
         '''
         Run one epoch of training or evaluation.
 
@@ -113,8 +113,8 @@ class EpochSTL:
         
         Returns
         -------
-        EpochResultSTL
-            EpochResult object containing loss, logits, labels, and identifiers.
+        ResultSTL
+            Result object containing loss, logits, labels, and identifiers.
         '''
         # Set mode -> dropout, batchnorm, etc.
         self.model.train(training)
@@ -165,7 +165,7 @@ class EpochSTL:
         total_logits = torch.cat(total_logits).numpy()
         total_labels = torch.cat(total_labels).numpy()
 
-        return EpochResultSTL(
+        return ResultSTL(
             loss=total_loss / total_samples,
             logits=total_logits,
             labels=total_labels,
@@ -204,7 +204,7 @@ class EpochMTL(Epoch):
     def train(
         self, 
         cycler: LoaderCycler,
-    ) -> EpochResultMTL:
+    ) -> ResultMTL:
         '''
         Run one epoch of training.
 
@@ -215,8 +215,8 @@ class EpochMTL(Epoch):
         
         Returns
         -------
-        EpochResultMTL
-            EpochResult object containing loss, logits, labels, and identifiers.
+        ResultMTL
+            Result object containing loss, logits, labels, and identifiers.
         '''
         # Set mode -> dropout, batchnorm, etc.
         self.model.train()
@@ -284,7 +284,7 @@ class EpochMTL(Epoch):
             logits_per_task[idx] = torch.cat(logits_per_task[idx]).numpy()
             labels_per_task[idx] = torch.cat(labels_per_task[idx]).numpy()
 
-        return EpochResultMTL(
+        return ResultMTL(
             #loss=total_loss / sum(samples_per_task),
             weights=self.weighting.weights,
             losses=losses_per_task / samples_per_task,
@@ -297,13 +297,13 @@ class EpochMTL(Epoch):
 # aggregated loss. The aggregated loss is used for backpropagation, while the
 # per-task losses are used for evaluation and tracking. However, they are
 # equivalent and one can be derived from the other. In fact, having an
-# EpochResultMTL object called er, one can derive that:
+# ResultMTL object called er, one can derive that:
 # er.loss == sum(er.losses * er.weights)
 # This is true regardless of the number of samples per tasks, as the losses are
 # already normalized by the number of samples per task. 
-# Ultimately, the aggregated loss is not reported in the EpochResultMTL object, 
+# Ultimately, the aggregated loss is not reported in the ResultMTL object, 
 # as it can be easily derived from the per-task losses and weights. This design
-# choice brings EpochResultMTL closer to the STL EpochResultSTL, which only 
+# choice brings ResultMTL closer to the STL ResultSTL, which only 
 # reports the loss for the single task.
 
     @torch.inference_mode()
@@ -311,7 +311,7 @@ class EpochMTL(Epoch):
         self,
         dataloader: DataLoader,
         task_idx: int
-    ) -> EpochResultSTL:
+    ) -> ResultSTL:
         '''
         Run one epoch of evaluation.
         Since we evaluate one task at a time, we can reuse 99% of the code from
@@ -327,8 +327,8 @@ class EpochMTL(Epoch):
         
         Returns
         -------
-        EpochResultSTL
-            EpochResult object containing loss, logits, labels, and identifiers.
+        ResultSTL
+            Result object containing loss, logits, labels, and identifiers.
         '''
         # Set mode -> dropout, batchnorm, etc.
         self.model.eval()
@@ -369,7 +369,7 @@ class EpochMTL(Epoch):
         total_logits = torch.cat(total_logits).numpy()
         total_labels = torch.cat(total_labels).numpy()
 
-        return EpochResultSTL(
+        return ResultSTL(
             loss=total_loss / total_samples,
             logits=total_logits,
             labels=total_labels,

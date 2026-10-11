@@ -6,8 +6,8 @@ from abc import abstractmethod, ABC
 import numpy as np
 
 # Custom modules
+from core.result import ResultSTL
 from core.performance import Performance
-from core.epoch_result import EpochResultSTL
 
 class WeightingStrategy(ABC):
 
@@ -95,7 +95,7 @@ class RankWeighting(WeightingStrategy):
 
     def update(
         self, 
-        epoch_results: list[EpochResultSTL]
+        epoch_results: list[ResultSTL]
     ) -> None:
         '''
         Update the weights based on the current epoch result. The update is
@@ -104,7 +104,7 @@ class RankWeighting(WeightingStrategy):
 
         Parameters
         ----------
-        epoch_results : list[EpochResultSTL]
+        epoch_results : list[ResultSTL]
             The results of the current epoch, containing the loss, logits, and
             labels for each task.
         '''
@@ -156,7 +156,7 @@ class FAMOWeighting(WeightingStrategy):
 
     def update(
         self, 
-        epoch_results: list[EpochResultSTL]
+        epoch_results: list[ResultSTL]
     ) -> None:
         '''
         Update the weights based on the current epoch result. The update is
@@ -165,7 +165,7 @@ class FAMOWeighting(WeightingStrategy):
 
         Parameters
         ----------
-        epoch_results : list[EpochResultSTL]
+        epoch_results : list[ResultSTL]
             The results of the current epoch, containing the loss, logits, and
             labels for each task.
         '''
@@ -213,14 +213,14 @@ if __name__ == "__main__":
     print(f"Static weights: {static_weighting.weights}")
 
     # Example good learner
-    good_epoch_result = EpochResultSTL(
+    good_epoch_result = ResultSTL(
         loss=0.2,
         logits=np.array([-0.1, 0.1]),
         labels=np.array([0, 1]),
         identifiers=["P12345", "P67890"]
     )
     # Example bad learner
-    bad_epoch_result = EpochResultSTL(
+    bad_epoch_result = ResultSTL(
         loss=0.4,
         logits=np.array([0, 0]),
         labels=np.array([0, 1]),

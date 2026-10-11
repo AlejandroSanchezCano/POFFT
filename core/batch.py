@@ -24,7 +24,7 @@ class Batch:
         self.identifiers = batch['identifiers']
     
     def __len__(self):
-        return self.labels.size(0)
+        return len(self.labels)
 
     def to(self, device: torch.device):
         '''

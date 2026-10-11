@@ -1,13 +1,10 @@
 """
 ===============================================================================
-Title:      Epoch Result
-Outline:    EpochResult class to store the results of a training or evaluation
-            epoch. It provides methods to:
-            - Convert the results to a pandas DataFrame.
-            - Compute the optimal threshold for binary classification based on
-              the Matthews correlation coefficient (MCC).
+Title:      Result
+Outline:    Result classes to store the results of a training or evaluation
+            epoch.
 Author:     Alejandro Sánchez Cano
-Date:       09/10/2026
+Date:       11/10/2026
 ===============================================================================
 """
 
@@ -22,11 +19,11 @@ import pandas as pd
 # Custom modules
 from core.performance import Performance
 
-class EpochResult(ABC):
+class Result(ABC):
     pass
     
 @dataclass(frozen=True, slots=True)
-class EpochResultSTL(EpochResult):
+class ResultSTL(Result):
     loss: float
     logits: np.ndarray
     labels: np.ndarray
@@ -61,7 +58,7 @@ class EpochResultSTL(EpochResult):
         return best_threshold
 
 @dataclass(frozen=True, slots=True)
-class EpochResultMTL(EpochResult):
+class ResultMTL(Result):
     weights: np.ndarray
     losses: np.ndarray
     logits: list[np.ndarray]
@@ -71,24 +68,24 @@ class EpochResultMTL(EpochResult):
     @classmethod
     def from_stls(
         cls,
-        stl_results: list[EpochResultSTL],
+        stl_results: list[ResultSTL],
         weights: np.ndarray = None
-    ) -> 'EpochResultMTL':
+    ) -> ResultMTL:
         '''
-        Create an EpochResultMTL instance from a list of EpochResultSTL 
+        Create an ResultMTL instance from a list of ResultSTL 
         instances. 
 
         Parameters
         ----------
-        stl_results : list[EpochResultSTL]
-            List of STL epoch results, one for each task.
+        stl_results : list[ResultSTL]
+            List of ResultSTL instances, one for each task.
         weights : np.ndarray, optional
             Weights for each task. If None, equal weights are assigned.
         
         Returns
         -------
-        EpochResultMTL
-            The corresponding MTL epoch result.
+        ResultMTL
+            The corresponding MTL result.
         '''
         # Default weights: equal weights if not provided
         if weights is None:
@@ -108,7 +105,7 @@ class EpochResultMTL(EpochResult):
             identifiers=identifiers
     )
 
-    def to_stl(self) -> EpochResultSTL:
+    def to_stl(self) -> ResultSTL:
         '''
         Convert the MTL epoch result to an STL epoch result by computing a
         weighted loss and concatenating logits, labels, and identifiers across
@@ -116,7 +113,7 @@ class EpochResultMTL(EpochResult):
 
         Returns
         -------
-        EpochResultSTL
+        ResultSTL
             The corresponding STL epoch result.
         '''
         # Compute weighted loss
@@ -133,7 +130,7 @@ class EpochResultMTL(EpochResult):
             for identifier in identifiers
         ]
 
-        return EpochResultSTL(
+        return ResultSTL(
             loss=weighted_loss,
             logits=logits,
             labels=labels,
@@ -142,25 +139,25 @@ class EpochResultMTL(EpochResult):
 
 if __name__ == "__main__":
 
-    # TEST EPOCHRESULTSTL
-    epoch_result = EpochResultSTL(
+    # TEST RESULTSTL
+    result = ResultSTL(
         loss=0.5,
         logits=np.array([0.1, 0.2, 0.3]),
         labels=np.array([0, 1, 0]),
         identifiers=['id1', 'id2', 'id3']
     )
 
-    print("Optimal threshold:", epoch_result.optimal_threshold)
-    print("MTL result:", EpochResultMTL.from_stls(
-        [epoch_result, epoch_result]
+    print("Optimal threshold:", result.optimal_threshold)
+    print("MTL result:", ResultMTL.from_stls(
+        [result, result]
     ))
 
-    # TEST EPOCHRESULTMTL
-    epoch_result_mtl = EpochResultMTL(
+    # TEST RESULTMTL
+    result_mtl = ResultMTL(
         weights=np.array([0.5, 0.5]),
         losses=np.array([0.4, 0.6]),
         logits=[np.array([0.1, 0.2, 0.3]), np.array([0.3])],
         labels=[np.array([0, 1, 0]), np.array([1])],
         identifiers=[['id1', 'id2', 'id3'], ['id3']]
     )
-    print(epoch_result_mtl.to_stl())
+    print(result_mtl.to_stl())
