@@ -4,6 +4,9 @@ import torch
 from torch import nn
 from torchtyping import TensorType
 
+# Custom modules
+from model import utils
+
 class Frozen(nn.Module):
 
     def __init__(

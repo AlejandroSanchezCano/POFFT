@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from misc import config
 from core.loader_cycler import LoaderCycler
 from core.task_weight import WeightingStrategy
-from core.result import EpochResult, EpochResultSTL, EpochResultMTL
+from core.epoch_result import EpochResult, EpochResultSTL, EpochResultMTL
 
 ###############################################################################
 #######                      ABSTRACT BASE CLASS                        #######
@@ -51,11 +51,6 @@ class Epoch(ABC):
     @abstractmethod
     def evaluate(self, *args, **kwargs) -> EpochResult:
         '''Evaluate the model for one epoch.'''
-        pass
-
-    @abstractmethod
-    def _run(self, *args, **kwargs) -> EpochResult:
-        '''Run one epoch of training or evaluation.'''
         pass
 
 ###############################################################################
@@ -221,31 +216,13 @@ class EpochMTL(Epoch):
         self, 
         cycler: LoaderCycler,
     ) -> EpochResultMTL:
-        '''Train the model for one epoch.'''
-        return self._run(cycler, training=True)
-
-    @torch.inference_mode()
-    def evaluate(
-        self,
-        cycler: LoaderCycler,
-    ) -> EpochResultMTL:
-        '''Evaluate the model for one epoch.'''
-        return self._run(cycler, training=False)
-
-    def _run(
-        self, 
-        cycler: LoaderCycler,
-        training: bool,
-    ) -> EpochResultMTL:
         '''
-        Run one epoch of training or evaluation.
+        Run one epoch of training.
 
         Parameters
         ----------
         cycler : LoaderCycler
             LoaderCycler for the dataset.
-        training : bool
-            If True, run in training mode; otherwise, run in evaluation mode.
         
         Returns
         -------
@@ -253,7 +230,7 @@ class EpochMTL(Epoch):
             EpochResult object containing loss, logits, labels, and identifiers.
         '''
         # Set mode -> dropout, batchnorm, etc.
-        self.model.train(training)
+        self.model.train()
 
         # Initialize
         num_tasks = len(cycler)
@@ -264,8 +241,7 @@ class EpochMTL(Epoch):
         total_identifiers = [[] for _ in range(num_tasks)]
 
         # Iterate over loader cycler
-        desc = "Training" if training else "Evaluating"
-        for batches in tqdm(cycler, desc=desc, unit="batch"):
+        for batches in tqdm(cycler, desc='Training', unit="batch"):
 
             # Initialize batch values
             weighted_losses = np.zeros(len(batches))
@@ -341,4 +317,93 @@ class EpochMTL(Epoch):
             identifiers=total_identifiers
         )
 
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
+###############################################################################
                   
+    @torch.inference_mode()
+    def evaluate(
+        self,
+        dataloader: DataLoader,
+        task_idx: int
+    ) -> EpochResultSTL:
+        '''
+        Run one epoch of evaluation.
+        Since we evaluate one task at a time, we can reuse 99% of the code from
+        the STL epoch class. The only difference is that we need to pass the
+        task index to the model.
+
+        Parameters
+        ---------- 
+        dataloader : DataLoader
+            DataLoader for the dataset.
+        task_idx : int
+            Index of the task to evaluate.
+        
+        Returns
+        -------
+        EpochResultSTL
+            EpochResult object containing loss, logits, labels, and identifiers.
+        '''
+        # Set mode -> dropout, batchnorm, etc.
+        self.model.eval()
+
+        # Initialize 
+        total_loss = 0.0
+        total_samples = 0
+        total_logits = []
+        total_labels = []
+        total_identifiers = []
+
+        # Iterate over batches
+        desc = f"Evaluating Task {task_idx}"
+        for batch in tqdm(dataloader, desc=desc, unit="batch"):
+
+            # Unpack batch
+            tokens1, tokens2 = batch['inputs']
+            ids1, mask1 = tokens1
+            ids2, mask2 = tokens2
+            labels = batch['labels']
+            identifiers = batch['identifiers']
+
+            # Move to device
+            ids1 = ids1.to(self.device, non_blocking=True)
+            mask1 = mask1.to(self.device, non_blocking=True)
+            ids2 = ids2.to(self.device, non_blocking=True)
+            mask2 = mask2.to(self.device, non_blocking=True)
+            labels = labels.to(self.device, non_blocking=True)
+
+            # Construct model input
+            model_input = ((ids1, mask1), (ids2, mask2))
+            
+            # Forward pass with AMP
+            with torch.amp.autocast(
+                device_type=self.device.type, 
+                enabled=self.enable_amp
+            ):
+                logits = self.model(model_input, task_idx=task_idx)
+                loss = self.loss_fn(logits, labels)
+
+            # Accumulate
+            batch_size = labels.size(0)
+            total_loss += loss.detach().item() * batch_size
+            total_samples += batch_size
+            total_logits.append(logits.detach().cpu())
+            total_labels.append(labels.detach().cpu())
+            total_identifiers.extend(identifiers)
+
+        # Convert to numpy arrays
+        total_logits = torch.cat(total_logits).numpy()
+        total_labels = torch.cat(total_labels).numpy()
+
+        return EpochResultSTL(
+            loss=total_loss / total_samples,
+            logits=total_logits,
+            labels=total_labels,
+            identifiers=total_identifiers
+        )        
