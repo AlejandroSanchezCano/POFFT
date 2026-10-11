@@ -27,10 +27,10 @@ from misc import paths
 from misc import config
 from tool.esm2 import ESM2
 from core.split import Split
-from core.epoch import Epoch
 from misc.logger import logger
+from core.epoch import EpochSTL
 from core.tracker import Tracker
-from model.stl.frozen import Frozen
+from model.stl import SingleTask
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
 from core.inspector import ModelInspector
@@ -42,6 +42,7 @@ logger.info('Importing modules completed')
 
 # Choose family
 FAMILY_IDX = 3 # HSP70, MreB_Mbl = HSP70s
+
 # Set seed
 seed.set_seed(config.SEED)
 
@@ -49,8 +50,13 @@ seed.set_seed(config.SEED)
 REPLICATE = int(os.getenv('SLURM_ARRAY_TASK_ID'))
 logger.info(f'Running replicate: {REPLICATE}')
 
+# Variables
+FRAMEWORK = 'stl'
+TUNE = 'frozen'
+TASK_NAME = 'hsp70'
+
 ###############################################################################
-#######                              LOAD                               #######
+#######                           LOAD DATA                             #######
 ###############################################################################
 
 # Load protein pairs
@@ -91,53 +97,15 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     test_size=config.TEST_FRACTION
 )
 
+###############################################################################
+#######                       BUILD DATALOADERS                         #######
+###############################################################################
+
 # ESM2
 esm2 = ESM2(config.ESM2_MODEL)
 
-# Dynamic padding
-collator = DataCollatorWithPadding(
-    tokenizer=esm2.tokenizer,
-    padding=True,
-    return_tensors='pt'
-)
-
-# Collate function
-def collate_fn(batch: list[dict]) -> dict:
-    
-    # Access elements
-    tokenized = [item['input'] for item in batch]
-    labels = [item['label'] for item in batch]
-    identifiers = [item['identifier'] for item in batch]
-    tokenized1, tokenized2 = zip(*tokenized)
-
-    # Convert to specific format for collator: dictionary with (seq_len) ids and masks
-    batch1 = [
-        {
-            'input_ids': input_ids.squeeze(0), 
-            'attention_mask': attention_mask.squeeze(0)
-        }
-        for input_ids, attention_mask in tokenized1
-    ]
-    batch2 = [
-        {
-            'input_ids': input_ids.squeeze(0), 
-            'attention_mask': attention_mask.squeeze(0)
-        }
-        for input_ids, attention_mask in tokenized2
-    ]
-
-    # Collate batches
-    collated1 = collator(batch1)
-    collated2 = collator(batch2)
-
-    return {
-        'inputs': (
-            (collated1['input_ids'], collated1['attention_mask']),
-            (collated2['input_ids'], collated2['attention_mask'])
-        ),
-        'labels': torch.stack(labels),
-        'identifiers': identifiers
-    }
+# Make collate function
+collate_fn = utils.make_collate_fn(esm2.tokenizer)
 
 # Build samplers
 train_sampler = LengthBatchSampler(
@@ -206,9 +174,10 @@ head = ClassificationHead(
 )
 
 # Model
-model = Frozen(
+model = SingleTask(
     encoder=esm2.model, 
-    head=head
+    head=head,
+    tune=config.TUNE,
 )
 
 # Inspector
@@ -237,7 +206,7 @@ loss_fn = BinaryFocalLoss(
 )
 
 # Epoch
-epoch = Epoch(        
+epoch = EpochSTL(        
     model=model,
     loss_fn=loss_fn,
     optimizer=optimizer,
@@ -250,19 +219,37 @@ tracker = Tracker()
 #######                        TRAIN AND EVALUATE                       #######
 ###############################################################################
 
+# Construct output directory
+main_dir = paths.MODELS
+replicate = str(REPLICATE)
+out_dir = main_dir / FRAMEWORK / TASK_NAME / TUNE / replicate
+# example: path.MODELS/mtl/combined/frozen/0
+out_dir.mkdir(parents=True, exist_ok=True)
+logger.info(f'Output directory: {out_dir}')
+
+# Save config
+utils.save_config(config=config, out_dir=out_dir)
+
 # Loop over epochs
 for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
 
+    # Epoch directory
+    epoch_dir = out_dir / str(epoch_idx + 1)
+    epoch_dir.mkdir(parents=True, exist_ok=True)
+
     # Train
     train = epoch.train(train_loader)
+
     # Evaluate
     val = epoch.evaluate(val_loader)
+
     # Track
     tracker.track(
         train=train,
         validation=val,
         model=model
     )
+
     # Logging
     logger.info(f'Epoch {epoch_idx+1}/{config.EPOCHS}')
     logger.info(f'Train loss = {train.loss:.4f}')
@@ -271,6 +258,22 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
     logger.info(f'Validation balanced accuracy = {tracker.performance["val"].balanced_accuracy:.4f}')
     logger.info(f'Train AUPRC = {tracker.performance["train"].auprc:.4f}')
     logger.info(f'Validation AUPRC = {tracker.performance["val"].auprc:.4f}')
+
+    # Save model
+    torch.save(
+        model.state_dict(),
+        epoch_dir / 'model.pt'
+    )
+
+    # Save results
+    torch.save(
+        train,
+        epoch_dir / 'train.pt'
+    )
+    torch.save(
+        val,
+        epoch_dir / 'val.pt'
+    )
 
     # Early stopping
     if early_stop(loss=val.loss):
@@ -283,29 +286,19 @@ logger.info(
     f"validation loss: {tracker.best_loss:.4f}"
 )
 
-# Construct output directory
-main_dir = paths.MODELS
-framework = 'stl'
-task_name = config.FAMILIES[FAMILY_IDX].replace(', ', '_')
-model_name = model.__class__.__name__.lower()
-replicate = str(REPLICATE)
-out_dir = main_dir / framework / task_name / model_name / replicate
-out_dir.mkdir(parents=True, exist_ok=True)
-
-# Save model
-torch.save(tracker.best_model, out_dir / 'model.pt')
-
-# Plot loss curves
-tracker.loss_curves(out_dir / 'loss_curves.png')
-
-# Save validation results (for threshold selection)
-val = tracker.history['val'][tracker.best_epoch]
-df = val.to_dataframe()
-df.to_csv(out_dir / 'validation_results.csv', index=False)
+# Save best model
+torch.save(
+    tracker.best_model, 
+    out_dir / 'model.pt'
+)
 
 # Evaluate on test set with best model
 model.load_state_dict(tracker.best_model)
 epoch.model = model
 test = epoch.evaluate(test_loader)
-df = test.to_dataframe()
-df.to_csv(out_dir / 'results.csv', index=False)
+
+# Save test results
+torch.save(
+    test,
+    out_dir / 'test.pt'
+)

@@ -1,4 +1,6 @@
 
+
+
 # Built-in modules
 import os
 
@@ -7,7 +9,6 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from transformers import DataCollatorWithPadding
 
 # Custom modules
 from core import seed
@@ -18,8 +19,9 @@ from tool.esm2 import ESM2
 from core.split import Split
 from misc.logger import logger
 from core.epoch import EpochMTL
+from model.mtl import MultiTask
 from core.tracker import Tracker
-from model.mtl.frozen import Frozen
+from core.result import ResultMTL
 from core.loss import BinaryFocalLoss
 from core.early_stop import EarlyStop
 from model.bottleneck import Bottleneck
@@ -36,11 +38,16 @@ logger.info('Importing modules completed')
 seed.set_seed(config.SEED)
 
 # Job array
-REPLICATE = 0 #int(os.getenv('SLURM_ARRAY_TASK_ID'))
+REPLICATE = int(os.getenv('SLURM_ARRAY_TASK_ID'))
 logger.info(f'Running replicate: {REPLICATE}')
 
+# Variables
+FRAMEWORK = 'mtl'
+TUNE = 'frozen'
+TASK_NAME = 'combined'
+
 ###############################################################################
-#######                              LOAD                               #######
+#######                           LOAD DATA                             #######
 ###############################################################################
 
 # Load protein pairs
@@ -72,53 +79,15 @@ train_dataset, val_dataset, test_dataset = splitter.simple(
     test_size=config.TEST_FRACTION
 )
 
+###############################################################################
+#######                       BUILD DATALOADERS                         #######
+###############################################################################
+
 # ESM2
 esm2 = ESM2(config.ESM2_MODEL)
 
-# Dynamic padding
-collator = DataCollatorWithPadding(
-    tokenizer=esm2.tokenizer,
-    padding=True,
-    return_tensors='pt'
-)
-
-# Collate function
-def collate_fn(batch: list[dict]) -> dict:
-    
-    # Access elements
-    tokenized = [item['input'] for item in batch]
-    labels = [item['label'] for item in batch]
-    identifiers = [item['identifier'] for item in batch]
-    tokenized1, tokenized2 = zip(*tokenized)
-
-    # Convert to specific format for collator: dictionary with (seq_len) ids and masks
-    batch1 = [
-        {
-            'input_ids': input_ids.squeeze(0), 
-            'attention_mask': attention_mask.squeeze(0)
-        }
-        for input_ids, attention_mask in tokenized1
-    ]
-    batch2 = [
-        {
-            'input_ids': input_ids.squeeze(0), 
-            'attention_mask': attention_mask.squeeze(0)
-        }
-        for input_ids, attention_mask in tokenized2
-    ]
-
-    # Collate batches
-    collated1 = collator(batch1)
-    collated2 = collator(batch2)
-
-    return {
-        'inputs': (
-            (collated1['input_ids'], collated1['attention_mask']),
-            (collated2['input_ids'], collated2['attention_mask'])
-        ),
-        'labels': torch.stack(labels),
-        'identifiers': identifiers
-    }
+# Make collate function
+collate_fn = utils.make_collate_fn(esm2.tokenizer)
 
 # Iterate over families
 train_loaders = []
@@ -127,7 +96,7 @@ test_loaders = []
 for family in config.FAMILIES:
 
     # Log family
-    logger.info(f'Family: {family}')
+    logger.info(f"Building dataloaders for family: {family}")
     logger.info('-' * 60)
 
     # Select pairs from the test, val, test datasets (actually subsets)
@@ -135,17 +104,34 @@ for family in config.FAMILIES:
     val_pairs = utils.extract_pairs(val_dataset)
     test_pairs = utils.extract_pairs(test_dataset)
 
+    # Select pairs for the current family
+    family_train_pairs = [
+        pair
+        for pair in train_pairs
+        if pair.p1.family == family or pair.p2.family == family
+    ]
+    family_val_pairs = [
+        pair
+        for pair in val_pairs
+        if pair.p1.family == family or pair.p2.family == family
+    ]
+    family_test_pairs = [
+        pair
+        for pair in test_pairs
+        if pair.p1.family == family or pair.p2.family == family
+    ]
+
     # Re-create datasets for the current family
     family_train_dataset = ProteinPairDataset(
-        pairs=train_pairs,
+        pairs=family_train_pairs,
         tokenized=tokenized
     )
     family_val_dataset = ProteinPairDataset(
-        pairs=val_pairs,
+        pairs=family_val_pairs,
         tokenized=tokenized
     )
     family_test_dataset = ProteinPairDataset(
-        pairs=test_pairs,
+        pairs=family_test_pairs,
         tokenized=tokenized
     )
     logger.info(f'Logging {family} training dataset:')
@@ -159,17 +145,20 @@ for family in config.FAMILIES:
     train_sampler = LengthBatchSampler(
         data_source=family_train_dataset,
         batch_size=config.BATCH_SIZE,
-        shuffle=True
+        shuffle=True,
+        drop_last=True # Only training drops last batch
     )
     val_sampler = LengthBatchSampler(
         data_source=family_val_dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=False
+        batch_size=config.BATCH_SIZE * len(config.FAMILIES), # Effective batch size
+        shuffle=False,
+        drop_last=False
     )
     test_sampler = LengthBatchSampler(
         data_source=family_test_dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=False
+        batch_size=config.BATCH_SIZE * len(config.FAMILIES), # Effective batch size
+        shuffle=False,
+        drop_last=False
     )
     logger.info(f'Train sampler: {len(train_sampler)} batches')
     logger.info(f'Validation sampler: {len(val_sampler)} batches')
@@ -184,7 +173,7 @@ for family in config.FAMILIES:
         persistent_workers=True,
         worker_init_fn=seed.seed_worker,
         pin_memory=True,
-        drop_last=True
+
     )
     val_loader = DataLoader(
         family_val_dataset,
@@ -194,7 +183,6 @@ for family in config.FAMILIES:
         persistent_workers=True,
         worker_init_fn=seed.seed_worker,
         pin_memory=True,
-        drop_last=True
     )
     test_loader = DataLoader(
         family_test_dataset,
@@ -204,21 +192,18 @@ for family in config.FAMILIES:
         persistent_workers=True,
         worker_init_fn=seed.seed_worker,
         pin_memory=True,
-        drop_last=True
     )
     logger.info(f'Train dataloader: {len(train_loader)} batches')
     logger.info(f'Validation dataloader: {len(val_loader)} batches')
     logger.info(f'Test dataloader: {len(test_loader)} batches')
-
+ 
     # Append loaders
     train_loaders.append(train_loader)
     val_loaders.append(val_loader)
     test_loaders.append(test_loader)
 
-# Create cyclers
-train_cycler = LoaderCycler(train_loaders)
-val_cycler = LoaderCycler(val_loaders)
-test_cycler = LoaderCycler(test_loaders)
+# Create train cycler
+cycler = LoaderCycler(train_loaders)
 
 # Reseed
 seed.set_seed(REPLICATE)
@@ -245,10 +230,11 @@ heads = nn.ModuleList([
 ])
 
 # Model
-model = Frozen(
+model = MultiTask(
     encoder=esm2.model, 
     bottleneck=bottleneck,
-    heads=heads
+    heads=heads,
+    tune=TUNE
 )
 
 # Inspector
@@ -277,10 +263,10 @@ loss_fn = BinaryFocalLoss(
 )
 
 # Task weighting strategy
-weighting_strategy = RankWeighting(
+weighting = RankWeighting(
     number_of_tasks=len(config.FAMILIES),
-    learning_rate=config.WEIGHT_LEARNING_RATE,
-    epsilon=config.WEIGHT_EPSILON
+    learning_rate=config.TASK_WEIGHTS_LEARNING_RATE,
+    epsilon=config.TASK_WEIGHTS_EPSILON
 )
 
 # Epoch
@@ -288,7 +274,7 @@ epoch = EpochMTL(
     model=model,
     loss_fn=loss_fn,
     optimizer=optimizer,
-    weighting_strategy=weighting_strategy,
+    weighting=weighting,
 )
 
 # Tracker
@@ -298,23 +284,99 @@ tracker = Tracker()
 #######                        TRAIN AND EVALUATE                       #######
 ###############################################################################
 
+# Construct output directory
+main_dir = paths.MODELS
+replicate = str(REPLICATE)
+out_dir = main_dir / FRAMEWORK / TASK_NAME / TUNE / replicate
+# example: path.MODELS/mtl/combined/frozen/0
+out_dir.mkdir(parents=True, exist_ok=True)
+logger.info(f'Output directory: {out_dir}')
+
+# Save config
+utils.save_config(config=config, out_dir=out_dir)
+
 # Loop over epochs
 for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
 
+    # Epoch directory
+    epoch_dir = out_dir / str(epoch_idx + 1)
+    epoch_dir.mkdir(parents=True, exist_ok=True)
+
     # Train
-    train = epoch.train(train_cycler)
+    train_result_mtl = epoch.train(cycler)
+
     # Evaluate
-    val = epoch.evaluate(val_cycler)
+    val_result_stls = [
+        epoch.evaluate(val_loader, task_idx=idx)
+        for idx, val_loader in enumerate(val_loaders)
+    ]
 
+    # Task weighting update
+    weighting.update(val_result_stls)
 
-    # Update weights
-    pass
+    # Aggregate as ResultSTL for tracking and logging
+    train_result = train_result_mtl.to_stl()
+    val_result = ResultMTL.from_stls(val_result_stls).to_stl()
 
-#FIXME: iterating over batches needs to also return the task index
-#FIXME: cycler is good for training, but for evaluation it is just a dataloader
+    # Track
+    tracker.track(
+        train=train_result,
+        validation=val_result,
+        model=model
+    )
 
+    # Logging
+    logger.info(f'Epoch {epoch_idx+1}/{config.EPOCHS}')
+    logger.info(f'Train loss = {train_result.loss:.4f}')
+    logger.info(f'Validation loss = {val_result.loss:.4f}')
+    logger.info(f'Train balanced accuracy = {tracker.performance["train"].balanced_accuracy:.4f}')
+    logger.info(f'Validation balanced accuracy = {tracker.performance["val"].balanced_accuracy:.4f}')
+    logger.info(f'Train AUPRC = {tracker.performance["train"].auprc:.4f}')
+    logger.info(f'Validation AUPRC = {tracker.performance["val"].auprc:.4f}')
 
-# We need to keep
-# - Weights for each task
-# - Losses for each task
-# - Computed thresholds (general, not per-task) (val MCC-based)
+    # Save model
+    torch.save(
+        model.state_dict(),
+        epoch_dir / 'model.pt'
+    )
+
+    # Save results
+    torch.save(
+        train_result_mtl,
+        epoch_dir / 'train.pt'
+    )
+    torch.save(
+        val_result_stls,
+        epoch_dir / 'val.pt'
+    )
+
+    # Early stopping
+    if early_stop(loss=val_result.loss):
+        logger.info('Early stopping triggered.')
+        break
+
+# Best epoch
+logger.info(
+    f"Epoch {tracker.best_epoch + 1} had the best " 
+    f"validation loss: {tracker.best_loss:.4f}"
+)
+
+# Save best model
+torch.save(
+    tracker.best_model, 
+    out_dir / 'model.pt'
+)
+
+# Evaluate on test set with best model
+model.load_state_dict(tracker.best_model)
+epoch.model = model
+test_result_stls = [
+    epoch.evaluate(test_loader, task_idx=idx)
+    for idx, test_loader in enumerate(test_loaders)
+]
+
+# Save test results
+torch.save(
+    test_result_stls,
+    out_dir / 'test.pt'
+)
