@@ -25,6 +25,7 @@ from transformers import DataCollatorWithPadding
 from core import seed
 from misc import paths
 from misc import config
+from learn import utils
 from tool.esm2 import ESM2
 from peft import LoraConfig
 from core.split import Split
@@ -166,7 +167,7 @@ head = ClassificationHead(
 model = SingleTask(
     encoder=esm2.model, 
     head=head,
-    tune=config.TUNE,
+    tune=TUNE,
     peft_config=LoraConfig(**config.LORA_CONFIG)
 )
 

@@ -26,6 +26,7 @@ from transformers import DataCollatorWithPadding
 from core import seed
 from misc import paths
 from misc import config
+from learn import utils
 from tool.esm2 import ESM2
 from core.split import Split
 from misc.logger import logger
@@ -188,7 +189,7 @@ head = ClassificationHead(
 model = SingleTask(
     encoder=esm2.model, 
     head=head,
-    tune=config.TUNE,
+    tune=TUNE,
 )
 
 # Inspector
