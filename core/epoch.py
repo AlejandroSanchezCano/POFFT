@@ -58,7 +58,7 @@ class Epoch(ABC):
 #######                      SINGLE TASK LEARNING                       #######
 ###############################################################################
 
-class EpochSTL:
+class EpochSTL(Epoch):
 
     def __init__(
         self,
