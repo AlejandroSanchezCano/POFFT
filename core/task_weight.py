@@ -7,7 +7,7 @@ import numpy as np
 
 # Custom modules
 from core.performance import Performance
-from core.epoch_result import EpochResultMTL
+from core.epoch_result import EpochResultSTL
 
 class WeightingStrategy(ABC):
 
@@ -95,7 +95,7 @@ class RankWeighting(WeightingStrategy):
 
     def update(
         self, 
-        epoch_result: EpochResultMTL
+        epoch_results: list[EpochResultSTL]
     ) -> None:
         '''
         Update the weights based on the current epoch result. The update is
@@ -104,15 +104,15 @@ class RankWeighting(WeightingStrategy):
 
         Parameters
         ----------
-        epoch_result : EpochResultMTL
-            The result of the current epoch, containing the loss, logits, and
+        epoch_results : list[EpochResultSTL]
+            The results of the current epoch, containing the loss, logits, and
             labels for each task.
         '''
         # Exctract AUPRC
         auprcs = np.array([
             Performance(
-                true=epoch_result.labels[idx],
-                logits=epoch_result.logits[idx]
+                true=epoch_results[idx].labels,
+                logits=epoch_results[idx].logits
             ).auprc
             for idx in range(len(self.weights))
         ])
@@ -156,7 +156,7 @@ class FAMOWeighting(WeightingStrategy):
 
     def update(
         self, 
-        epoch_result: EpochResultMTL
+        epoch_results: list[EpochResultSTL]
     ) -> None:
         '''
         Update the weights based on the current epoch result. The update is
@@ -165,18 +165,21 @@ class FAMOWeighting(WeightingStrategy):
 
         Parameters
         ----------
-        epoch_result : EpochResultMTL
-            The result of the current epoch, containing the loss, logits, and
+        epoch_results : list[EpochResultSTL]
+            The results of the current epoch, containing the loss, logits, and
             labels for each task.
         '''
         # Exctract loss
-        losses = epoch_result.loss
+        losses = np.array([
+            epoch_results[idx].loss
+            for idx in range(len(self.weights))
+        ])
 
         # Exctract AUPRC
         auprcs = np.array([
             Performance(
-                true=epoch_result.labels[idx],
-                logits=epoch_result.logits[idx]
+                true=epoch_results[idx].labels,
+                logits=epoch_results[idx].logits
             ).auprc
             for idx in range(len(self.weights))
         ])
@@ -209,20 +212,34 @@ if __name__ == "__main__":
     static_weighting = StaticWeighting(weights=[0.1, 0.4, 0.25, 0.25])
     print(f"Static weights: {static_weighting.weights}")
 
-    # Example EpochResultMTL
-    epoch_result = EpochResultMTL(
-        loss=np.array([0.2, 0.2, 0.4, 0.4]),
-        logits=np.array([[-0.1, 0.1], [-0.1, 0.1], [0, 0], [0, 0]]),
-        labels=np.array([[0, 1], [0, 1], [0, 1], [0, 1]]),
-        identifiers=[]
+    # Example good learner
+    good_epoch_result = EpochResultSTL(
+        loss=0.2,
+        logits=np.array([-0.1, 0.1]),
+        labels=np.array([0, 1]),
+        identifiers=["P12345", "P67890"]
     )
+    # Example bad learner
+    bad_epoch_result = EpochResultSTL(
+        loss=0.4,
+        logits=np.array([0, 0]),
+        labels=np.array([0, 1]),
+        identifiers=["P12345", "P67890"]
+    )
+    # Combined examples
+    epoch_results = [
+        good_epoch_result,
+        good_epoch_result,
+        bad_epoch_result,
+        bad_epoch_result
+    ]
 
     # Try FAMO weighting
     famo_weighting = FAMOWeighting(number_of_tasks=4)
     print(f"FAMO weights: {famo_weighting.weights}")
     
     for _ in range(5):
-        famo_weighting.update(epoch_result=epoch_result)
+        famo_weighting.update(epoch_results=epoch_results)
         print(f"Updated FAMO weights: {famo_weighting.weights}")
 
     # Try rank weighting
@@ -230,5 +247,5 @@ if __name__ == "__main__":
     print(f"Rank weights: {rank_weighting.weights}")
     
     for _ in range(5):
-        rank_weighting.update(epoch_result=epoch_result)
+        rank_weighting.update(epoch_results=epoch_results)
         print(f"Updated Rank weights: {rank_weighting.weights}")
