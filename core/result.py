@@ -70,7 +70,7 @@ class ResultMTL(Result):
         cls,
         stl_results: list[ResultSTL],
         weights: np.ndarray = None
-    ) -> ResultMTL:
+    ) -> 'ResultMTL':
         '''
         Create an ResultMTL instance from a list of ResultSTL 
         instances. 

@@ -26,7 +26,7 @@ class Batch:
     def __len__(self):
         return len(self.labels)
 
-    def to(self, device: torch.device):
+    def to(self, device: 'torch.device'):
         '''
         Move the batch to the specified device.
 
