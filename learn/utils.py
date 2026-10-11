@@ -4,10 +4,15 @@ Title:      Utils
 Outline:    Utility functions for the training scripts:
             - extract_pairs: gets protein pairs from a subset of a dataset.
             - make_collate_fn: creates a Dataloader collate function
+            - save_config: saves the configuration to a JSON file.
 Author:     Alejandro Sánchez Cano
-Date:       08/10/2026
+Date:       11/10/2026
 ===============================================================================
 """
+
+# Built-in modules
+import json
+from typing import Callable
 
 # Third-party modules
 import torch
@@ -97,3 +102,29 @@ def make_collate_fn(tokenizer) -> callable:
         }
 
     return collate_fn
+
+def save_config(
+    config: 'module', 
+    out_dir: 'pathlib.Path'
+) -> None:
+    '''
+    Saves the configuration to a JSON file in the specified output directory.
+
+    Parameters
+    ----------
+    config : module
+        The configuration module containing the settings to be saved.
+    out_dir : pathlib.Path
+        The output directory where the config.json file will be saved.
+    '''
+    # Convert config to dictionary
+    config_dict = {
+        key : value
+        for key, value in config.__dict__.items()
+        if not key.startswith('__') and not callable(value)
+    }
+
+    # Save to JSON file
+    config_path = out_dir / 'config.json'
+    with open(config_path, 'w') as handle:
+        json.dump(config_dict, handle, indent=4)
