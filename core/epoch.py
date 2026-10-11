@@ -233,18 +233,22 @@ class EpochMTL(Epoch):
         self.model.train()
 
         # Initialize
-        num_tasks = len(cycler)
-        total_samples = np.zeros(num_tasks, dtype=np.int64)
-        total_losses = np.zeros(num_tasks, dtype=np.float64)
-        total_logits = [[] for _ in range(num_tasks)]
-        total_labels = [[] for _ in range(num_tasks)]
-        total_identifiers = [[] for _ in range(num_tasks)]
+        num_tasks = len(cycler.loaders)
+        samples_per_task = np.zeros(num_tasks, dtype=np.int64)
+        total_loss = 0.0
+        losses_per_task = np.zeros(num_tasks, dtype=np.float64)
+        logits_per_task = [[] for _ in range(num_tasks)]
+        labels_per_task = [[] for _ in range(num_tasks)]
+        identifiers_per_task = [[] for _ in range(num_tasks)]
 
         # Iterate over loader cycler
         for batches in tqdm(cycler, desc='Training', unit="batch"):
+            
+            # Zero gradients
+            self.optimizer.zero_grad(set_to_none=True)
 
             # Initialize batch values
-            weighted_losses = np.zeros(len(batches))
+            weighted_losses = []
 
             # Iterate over tasks
             for task_idx, batch in enumerate(batches):
@@ -265,10 +269,6 @@ class EpochMTL(Epoch):
 
                 # Construct model input
                 model_input = ((ids1, mask1), (ids2, mask2))
-
-                # Zero gradients
-                if training:
-                    self.optimizer.zero_grad(set_to_none=True)
                 
                 # Forward pass with AMP
                 with torch.amp.autocast(
@@ -279,53 +279,56 @@ class EpochMTL(Epoch):
                     task_loss = self.loss_fn(task_logits, task_labels)    
                 
                 # Weight task loss
-                # FIXME: item() destroys the computational graph
                 weighted_loss = self.weighting.weights[task_idx] * task_loss
-                weighted_losses[task_idx] = weighted_loss.item()
+                weighted_losses.append(weighted_loss)
 
                 # Accumulate
                 task_samples = task_labels.size(0)
-                total_samples[task_idx] += task_samples
-                total_losses[task_idx] += weighted_loss.item() * task_samples
-                total_logits[task_idx].append(task_logits.detach().cpu())
-                total_labels[task_idx].append(task_labels.detach().cpu())
-                total_identifiers[task_idx].extend(identifiers)
+                samples_per_task[task_idx] += task_samples
+                losses_per_task[task_idx] += task_loss.item() * task_samples
+                logits_per_task[task_idx].append(task_logits.detach().cpu())
+                labels_per_task[task_idx].append(task_labels.detach().cpu())
+                identifiers_per_task[task_idx].extend(identifiers)
 
             # Sum weighted losses
-            loss = np.sum(weighted_losses)
+            loss = torch.stack(weighted_losses).sum()
 
             # Backward pass and optimization
-            if training:
-                self.scaler.scale(loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
+            # Accumulate total loss
+            samples = task_labels.size(0) * num_tasks
+            total_loss += loss.detach().item() * samples
 
         # Convert to numpy arrays
-        for idx in range(len(cycler)):
-            #FIXME: consider that some tasks may not be present!
-            total_logits[idx] = torch.cat(total_logits[idx]).numpy()
-            total_labels[idx] = torch.cat(total_labels[idx]).numpy()
+        for idx in range(num_tasks):
+            logits_per_task[idx] = torch.cat(logits_per_task[idx]).numpy()
+            labels_per_task[idx] = torch.cat(labels_per_task[idx]).numpy()
 
         return EpochResultMTL(
+            #loss=total_loss / sum(samples_per_task),
             weights=self.weighting.weights,
-            #FIXME: consider that some tasks may not be present! Use
-            # np.divide(total_losses, total_samples, 
-            # out=np.zeros_like(total_losses), where=total_samples > 0)
-            losses=total_losses / total_samples,
-            logits=total_logits,
-            labels=total_labels,
-            identifiers=total_identifiers
+            losses=losses_per_task / samples_per_task,
+            logits=logits_per_task,
+            labels=labels_per_task,
+            identifiers=identifiers_per_task
         )
 
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-###############################################################################
-                  
+# Here there have been two losses computed: the per-task losses and the
+# aggregated loss. The aggregated loss is used for backpropagation, while the
+# per-task losses are used for evaluation and tracking. However, they are
+# equivalent and one can be derived from the other. In fact, having an
+# EpochResultMTL object called er, one can derive that:
+# er.loss == sum(er.losses * er.weights)
+# This is true regardless of the number of samples per tasks, as the losses are
+# already normalized by the number of samples per task. 
+# Ultimately, the aggregated loss is not reported in the EpochResultMTL object, 
+# as it can be easily derived from the per-task losses and weights. This design
+# choice brings EpochResultMTL closer to the STL EpochResultSTL, which only 
+# reports the loss for the single task.
+
     @torch.inference_mode()
     def evaluate(
         self,
