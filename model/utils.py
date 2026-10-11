@@ -67,8 +67,8 @@ def encode(
     '''
     # Choose context manager
     is_frozen = not any(param.requires_grad for param in encoder.parameters())
-    grad_context = torch.no_grad if is_frozen else contextlib.nullcontext()
-
+    grad_context = torch.no_grad if is_frozen else contextlib.nullcontext
+    
     # Forward pass through the encoder
     with grad_context():
         output = encoder(*inputs)
