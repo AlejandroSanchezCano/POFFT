@@ -183,7 +183,7 @@ class EpochMTL(Epoch):
         model: nn.Module,
         loss_fn: nn.Module,
         optimizer: optim.Optimizer,
-        weighting_strategy: WeightingStrategy,
+        weighting: WeightingStrategy,
         device: torch.device = torch.device('cuda'),
         enable_amp: bool = True,
     ):
@@ -193,7 +193,7 @@ class EpochMTL(Epoch):
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.enable_amp = enable_amp
-        self.weighting = weighting_strategy
+        self.weighting = weighting
 
         # Automatic Mixed Precision (AMP)
         self.scaler = torch.amp.GradScaler(
