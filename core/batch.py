@@ -51,4 +51,4 @@ class Batch:
         tuple
             The model input as a tuple of tuples.
         '''
-        return (self.ids1, self.mask1), (self.ids2, self.mask2)
+        return (self.ids1, self.mask1), (self.ids2, self.mask2), self.identifiers

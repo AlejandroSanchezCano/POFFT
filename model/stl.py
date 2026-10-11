@@ -49,11 +49,47 @@ class SingleTask(nn.Module):
                 raise ValueError("peft_config must be provided when tune is 'lora'")
             self.encoder = peft.get_peft_model(self.encoder, peft_config)
 
+        # Hooks
+        self.identifiers = None
+        self.hooked_pooled = []
+        self.hooked_identifiers = []
+        self.head.register_forward_pre_hook(self.head_prehook)
+
+    def head_prehook(
+        self, 
+        module: nn.Module, 
+        input
+    ) -> None:
+        '''
+        Pre-hook for the classification head to store the pooled 
+        representations and identifiers for later inspection.
+
+        Parameters
+        ----------
+        module : nn.Module
+            The module that the hook is attached to.
+        input : _type_
+            The input to the module.
+        '''
+        # Hook if evaluating
+        if self.training:
+            return
+
+        # Hook
+        self.hooked_pooled.append(input[0].detach().cpu())
+        self.hooked_identifiers.append(self.identifiers)
+
+    def clear_hooks(self) -> None:
+        '''Clear the hooked elements.'''
+        self.hooked_pooled.clear()
+        self.hooked_identifiers.clear()
+
     def forward(
         self, 
         x: tuple[
             tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
-            tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]]
+            tuple[TensorType["batch", "seq_len"], TensorType["batch", "seq_len"]],
+            list[tuple[str, str]]
         ]
     ) -> TensorType["batch"]:
         '''
@@ -63,7 +99,7 @@ class SingleTask(nn.Module):
         ----------
         x : tuple
             Tuple containing two tuples, each with (input_ids, attention_mask)
-            for the two protein sequences.
+            for the two protein sequences, and a list of identifier tuples.
 
         Returns
         -------
@@ -71,7 +107,8 @@ class SingleTask(nn.Module):
             Logits.
         '''
         # Unpack inputs
-        (ids1, mask1), (ids2, mask2) = x
+        (ids1, mask1), (ids2, mask2), identifiers = x
+        self.identifiers = identifiers
 
         # Encode 
         encoded1 = utils.encode(encoder=self.encoder, inputs=(ids1, mask1)) # (batch, seq_len + 2, hidden_size)

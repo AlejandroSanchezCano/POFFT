@@ -257,7 +257,28 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
         validation=val,
         model=model
     )
+    
+    # Extract hooked representations
+    identifiers = [
+        identifier
+        for identifiers in model.hooked_identifiers
+        for identifier in identifiers
+    ]
+    pooled = torch.cat(model.hooked_pooled, dim=0)
+    hooked = {
+        'identifiers': identifiers,
+        'pooled': pooled
+    }
 
+    # Save hooked representations
+    torch.save(
+        hooked,
+        epoch_dir / 'hooked.pt'
+    )
+
+    # Clear hooks
+    model.clear_hooks()
+    
     # Logging
     logger.info(f'Epoch {epoch_idx+1}/{config.EPOCHS}')
     logger.info(f'Train loss = {train.loss:.4f}')
