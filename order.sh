@@ -11,4 +11,7 @@ sh job.sh -u rome -t 00:30:00 -f cluster/build_collections.py
 
 # Train models
 python learn/pretokenize.py
-sh job.sh -u gpu_a100 -t  04:00:00 -f learn/stl/gpcr.py --array 0-2
+sh job.sh -u gpu_a100 -t 20:00:00 -f learn/stl/combined_frozen.py --array 0-2
+sh job.sh -u gpu_a100 -t 20:00:00 -f learn/stl/combined_lora.py --array 0-2
+sh job.sh -u gpu_a100 -t 48:00:00 -f learn/mtl/frozen.py --array 0-2
+sh job.sh -u gpu_a100 -t 48:00:00 -f learn/mtl/lora.py --array 0-2
