@@ -250,12 +250,6 @@ optimizer = torch.optim.AdamW(
     weight_decay=config.WEIGHT_DECAY
 )
 
-# Early stopping
-early_stop = EarlyStop(
-    patience=config.PATIENCE,
-    min_delta=config.MIN_DELTA,
-)
-
 # Loss function
 loss_fn = BinaryFocalLoss(
     alpha=config.FOCAL_LOSS_ALPHA,
@@ -305,10 +299,16 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
     # Train
     train_result_mtl = epoch.train(cycler)
 
-    # Evaluate
+    # Validation
     val_result_stls = [
         epoch.evaluate(val_loader, task_idx=idx)
         for idx, val_loader in enumerate(val_loaders)
+    ]
+
+    # Testing
+    test_result_stls = [
+        epoch.evaluate(test_loader, task_idx=idx)
+        for idx, test_loader in enumerate(test_loaders)
     ]
 
     # Task weighting update
@@ -349,6 +349,11 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
         val_result_stls,
         epoch_dir / 'val.pt'
     )
+    # Save test results
+    torch.save(
+        test_result_stls,
+        epoch_dir / 'test.pt'
+    )
 
     # Early stopping
     if early_stop(loss=val_result.loss):
@@ -359,24 +364,4 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
 logger.info(
     f"Epoch {tracker.best_epoch + 1} had the best " 
     f"validation loss: {tracker.best_loss:.4f}"
-)
-
-# Save best model
-torch.save(
-    tracker.best_model, 
-    out_dir / 'model.pt'
-)
-
-# Evaluate on test set with best model
-model.load_state_dict(tracker.best_model)
-epoch.model = model
-test_result_stls = [
-    epoch.evaluate(test_loader, task_idx=idx)
-    for idx, test_loader in enumerate(test_loaders)
-]
-
-# Save test results
-torch.save(
-    test_result_stls,
-    out_dir / 'test.pt'
 )
