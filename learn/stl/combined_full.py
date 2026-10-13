@@ -26,6 +26,7 @@ from core import seed
 from misc import paths
 from misc import config
 from learn import utils
+from core.hook import Hook
 from tool.esm2 import ESM2
 from core.split import Split
 from misc.logger import logger
@@ -218,6 +219,16 @@ epoch = EpochSTL(
     optimizer=optimizer,
 )
 
+# Hook
+hook = Hook(
+    module=model.head,
+    hook_type='forward_pre',
+    auto_register=False,
+    capture=True,
+    detach=True,
+    cpu=True,
+)
+
 # Tracker
 tracker = Tracker()
 
@@ -247,17 +258,16 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
     train = epoch.train(train_loader)
 
     # Evaluate
-    val = epoch.evaluate(val_loader)
-    
+    with hook:
+        val = epoch.evaluate(val_loader)
+
     # Extract hooked representations
-    identifiers = [
-        identifier
-        for identifiers in model.hooked_identifiers
-        for identifier in identifiers
-    ]
-    pooled = torch.cat(model.hooked_pooled, dim=0)
+    pooled = torch.cat([
+        history['input'][0]
+        for history in hook.history
+    ])
     hooked = {
-        'identifiers': identifiers,
+        'identifiers': val.identifiers,
         'pooled': pooled
     }
 
@@ -267,9 +277,9 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
         epoch_dir / 'hooked.pt'
     )
 
-    # Clear hooks
-    model.clear_hooks()
-    
+    # Clear hook history
+    hook.clear()
+
     # Track
     tracker.track(
         train=train,
