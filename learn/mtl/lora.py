@@ -361,12 +361,6 @@ for epoch_idx in tqdm(range(config.EPOCHS), desc='Epochs', unit='epoch'):
         # Clear hook history
         hook.clear()
 
-        print(f'Hooked representations for task {idx}:')
-        print(f'  Pooled: {pooled.shape}')
-        print(f'  Bottlenecked: {bottlenecked.shape}')
-    
-    dfsdfds
-
     # Testing
     test_result_stls = [
         epoch.evaluate(test_loader, task_idx=idx)
